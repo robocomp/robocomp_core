@@ -99,7 +99,8 @@ MACRO( ROBOCOMP_IDSL_TO_ICE )
   STRING (REPLACE "/" "_" SPECIFIC_TARGET "${CMAKE_CURRENT_SOURCE_DIR}") 
   ADD_CUSTOM_TARGET(ICES_${SPECIFIC_TARGET} ALL)
   SET( SLICE_PATH "$ENV{SLICE_PATH};$ENV{ROBOCOMP}/interfaces/IDSLs;/opt/robocomp/interfaces/IDSLs;./ice_files/;")
-
+  MESSAGE(STATUS "ROBOCOMP_IDSL_TO_ICE called with ${ARGN}")
+  MESSAGE(STATUS "Searching for IDSL files in ${SLICE_PATH}")
   FOREACH( input_file ${ARGN} )
 
     set(found FALSE)

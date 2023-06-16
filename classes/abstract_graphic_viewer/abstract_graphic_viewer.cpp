@@ -11,7 +11,7 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_)
     scene.setSceneRect(dim_);
     this->setScene(&scene);
     this->setCacheMode(QGraphicsView::CacheBackground);
-    this->setViewport(new QGLWidget(QGLFormat(QGL::SampleBuffers)));
+    this->setViewport(new QOpenGLWidget());
     this->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
     this->setRenderHint(QPainter::Antialiasing);
     this->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
@@ -66,11 +66,11 @@ void AbstractGraphicViewer::wheelEvent(QWheelEvent *event)
         factor = 1.1;
     else
         factor = 0.9;
-    auto view_pos = event->pos();
-    auto scene_pos = this->mapToScene(view_pos);
+    auto view_pos = event->position();
+    auto scene_pos = this->mapToScene(view_pos.toPoint());
     this->centerOn(scene_pos);
     this->scale(factor, factor);
-    auto delta = this->mapToScene(view_pos) - this->mapToScene(this->viewport()->rect().center());
+    auto delta = this->mapToScene(view_pos.toPoint()) - this->mapToScene(this->viewport()->rect().center());
     this->centerOn(scene_pos - delta);
 }
 void AbstractGraphicViewer::resizeEvent(QResizeEvent *e)
@@ -81,10 +81,10 @@ void AbstractGraphicViewer::mouseMoveEvent(QMouseEvent *event)
 {
     if (_pan)
     {
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - (event->x() - _panStartX));
-        verticalScrollBar()->setValue(verticalScrollBar()->value() - (event->y() - _panStartY));
-        _panStartX = event->x();
-        _panStartY = event->y();
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - (event->position().x() - _panStartX));
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - (event->position().y() - _panStartY));
+        _panStartX = event->position().x();
+        _panStartY = event->position().y();
         event->accept();
 
     }
@@ -95,11 +95,11 @@ void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton)
     {
         _pan = true;
-        _panStartX = event->x();
-        _panStartY = event->y();
+        _panStartX = event->position().x();
+        _panStartY = event->position().y();
         setCursor(Qt::ClosedHandCursor);
         event->accept();
-        auto cursor_in_scene = this->mapToScene(QPoint(event->x(), event->y()));
+        auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
         // std::cout << p.x() << "  " << p.y() << std::endl;
         emit new_mouse_coordinates(cursor_in_scene);
         return;

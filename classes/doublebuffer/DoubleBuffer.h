@@ -69,6 +69,7 @@ public:
         write_freq = std::chrono::duration_cast<std::chrono::microseconds>(freq);
     };
 
+    // Waits for the buffer to be filled before retrieving its content
     O get(std::chrono::milliseconds t = 200ms ) {
         std::shared_lock lock(bufferMutex);
 
@@ -82,6 +83,13 @@ public:
         empty.store(true);
         return readBuffer;
     }
+
+   // Retrieves the buffer's content without setting it empty or checking that it is filled up
+   O get_idemp(std::chrono::milliseconds t = 200ms )
+   {
+        std::shared_lock lock(bufferMutex);
+        return readBuffer;
+   }
 
     std::optional<O> try_get()
     {

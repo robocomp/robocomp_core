@@ -27,7 +27,7 @@ class AbstractGraphicViewer : public QGraphicsView
         QGraphicsEllipseItem *laser_in_robot_sr;
 
     public:
-        AbstractGraphicViewer(QWidget *parent, QRectF dim_);
+        AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool draw_axis = true);
         std::tuple<QGraphicsPolygonItem*, QGraphicsEllipseItem*> add_robot(float robot_width,
                                                                            float robot_length,
                                                                            float laser_x_offset = 0,

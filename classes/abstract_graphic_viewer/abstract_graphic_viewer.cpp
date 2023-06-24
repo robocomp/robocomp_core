@@ -3,7 +3,7 @@
 //
 
 #include "abstract_graphic_viewer.h"
-AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_)
+AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool draw_axis)
 {
     QVBoxLayout *vlayout = new QVBoxLayout(parent);
     vlayout->addWidget(this);
@@ -20,12 +20,16 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_)
     this->setMouseTracking(true);
     this->fitInView(scene.sceneRect(), Qt::KeepAspectRatio);
     this->viewport()->setMouseTracking(true);
+
     // axis
-    auto r = sceneRect();
-    QLineF x_axis(r.center(), r.center()+QPointF(300,0));
-    QLineF y_axis(r.center(), r.center()+QPointF(0,300));
-    scene.addLine(x_axis, QPen(QColor("Red"), 30));
-    scene.addLine(y_axis, QPen(QColor("Green"), 30));
+    if(draw_axis)
+    {
+        auto r = sceneRect();
+        QLineF x_axis(r.center(), r.center() + QPointF(300, 0));
+        QLineF y_axis(r.center(), r.center() + QPointF(0, 300));
+        scene.addLine(x_axis, QPen(QColor("Red"), 30));
+        scene.addLine(y_axis, QPen(QColor("Green"), 30));
+    }
     this->adjustSize();
 }
 std::tuple<QGraphicsPolygonItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::add_robot(float robot_width, float robot_length,

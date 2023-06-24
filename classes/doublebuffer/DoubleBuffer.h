@@ -79,7 +79,6 @@ public:
                            [this]() { return !empty.load();})){
             throw std::runtime_error("Timeout");
         }
-
         empty.store(true);
         return readBuffer;
     }
@@ -88,6 +87,11 @@ public:
    O get_idemp(std::chrono::milliseconds t = 200ms )
    {
         std::shared_lock lock(bufferMutex);
+       if (!cv.wait_until(bufferMutex,
+                          std::chrono::steady_clock::now() + t ,
+                          [this]() { return !empty.load();})){
+           throw std::runtime_error("Timeout");
+       }
         return readBuffer;
    }
 

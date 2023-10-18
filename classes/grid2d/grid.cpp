@@ -844,8 +844,6 @@ std::optional<QPointF> Grid::closest_free_4x4(const QPointF &p)
 }
 std::tuple<bool, QVector2D> Grid::vectorToClosestObstacle(QPointF center)
 {
-    QTime reloj = QTime::currentTime();
-
     qDebug()<< "Computing neighboors of " << center;
     auto k = pointToKey(center.x(), center.y());
     QVector2D closestVector;

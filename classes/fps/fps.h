@@ -40,7 +40,7 @@ class FPSCounter
 				last_period = elapsed/cont;
                 float cpu = get_cpu_use();
                 int mem = get_mem_use();
-                std::cout << "Period = " << last_period << "ms. Fps = " << cont << " " << text
+                std::cout << "Period = " << last_period << "ms. Fps = " << cont/(msPeriod/1000) << " " << text
                           << " cpu = " << cpu << "%" << " mem = " << mem << "MB" << std::endl;
                 begin = std::chrono::high_resolution_clock::now();
                 fps=cont;

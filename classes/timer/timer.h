@@ -41,6 +41,12 @@ namespace rc
             //gsl_Expects(_end != timep_t{} && "toc before reporting");
             return std::chrono::duration_cast<T>(_end - _start).count();
         }
+        template<class T = DT>
+        void print()
+        {
+            tock();
+            std::cout << "Elapsed (ms): "  << std::chrono::duration_cast<T>(_end - _start).count() << std::endl;
+        }
     };
 }
 #endif

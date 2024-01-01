@@ -104,8 +104,14 @@ void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
         setCursor(Qt::ClosedHandCursor);
         event->accept();
         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
-        // std::cout << p.x() << "  " << p.y() << std::endl;
         emit new_mouse_coordinates(cursor_in_scene);
+        return;
+    }
+    if (event->button() == Qt::RightButton)
+    {
+        event->accept();
+        auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+        emit right_click(cursor_in_scene);
         return;
     }
     QGraphicsView::mousePressEvent(event);

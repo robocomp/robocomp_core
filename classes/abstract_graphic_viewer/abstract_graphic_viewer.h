@@ -40,6 +40,7 @@ class AbstractGraphicViewer : public QGraphicsView
 
 signals:
       void new_mouse_coordinates(QPointF);
+      void right_click(QPointF);
 
     protected:
         bool _pan = false;

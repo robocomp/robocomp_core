@@ -43,7 +43,7 @@ class FPSCounter
                 std::cout << "Period = " << last_period << "ms. Fps = " << cont/(msPeriod/1000) << " " << text
                           << " cpu = " << cpu << "%" << " mem = " << mem << "MB" << std::endl;
                 begin = std::chrono::high_resolution_clock::now();
-                fps=cont;
+                fps=cont/(msPeriod/1000);
                 cont = 0;
             }
             cont++;

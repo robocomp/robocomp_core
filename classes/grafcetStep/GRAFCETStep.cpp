@@ -28,7 +28,8 @@ GRAFCETStep::GRAFCETStep(QString name, int period_ms, const std::function<void()
     this->P1 = P1;                              //Function to be executed at start step
     this->P0 = P0;                              //Function to be executed at end step
 
-    if (this->N != nullptr){
+    if (this->N != nullptr)
+    {
         this->timer_step = new QTimer(this);       //Create cyclic timer
         this->timer_step->setInterval(period_ms);  //Set time to cyclic timer
         //Connecting the cyclic timer to the function 
@@ -44,9 +45,13 @@ GRAFCETStep::GRAFCETStep(QString name, int period_ms, const std::function<void()
  *
  * This function destroys and frees the object's memory
  */
-GRAFCETStep::~GRAFCETStep() {
-    this->timer_step->stop();  //Stop cyclic timer
-    delete this->timer_step;   //Delete cyclic timer
+GRAFCETStep::~GRAFCETStep() 
+{
+    if (this->N != nullptr)
+    {
+        this->timer_step->stop();  //Stop cyclic timer
+        delete this->timer_step;   //Delete cyclic timer
+    }
     #if DEBUG
         std::cout << "Dell GRAFCETStep"<< this->objectName().toStdString()<<std::endl<<std::flush;
     #endif
@@ -59,19 +64,36 @@ GRAFCETStep::~GRAFCETStep() {
  *
  * @param period_ms Period of cyclic execution.
  */
-void GRAFCETStep::changePeriod(int period_ms)
+void GRAFCETStep::setPeriod(int period_ms)
 {
-    if (this->N != nullptr){
+    if (this->N != nullptr)
+    {
         //Set new time to cyclic timer
         this->timer_step->setInterval(period_ms);
         this->mtx.lock();
         //Restart cyclic timer
-        if (this->timer_step->isActive()){
+        if (this->timer_step->isActive())
+        {
             timer_step->stop();
             timer_step->start();
         }
         this->mtx.unlock();
     }
+}
+
+/**
+ * @brief Get the period of the cyclic execution
+ *
+ * This function return the execution period.
+ *
+ * @return Cyclic execution period otherwise -1.
+ */
+int GRAFCETStep::getPeriod()
+{
+    if (this->N != nullptr)
+        return this->timer_step->interval();
+    else
+        return -1;
 }
 
 /**

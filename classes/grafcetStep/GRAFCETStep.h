@@ -28,7 +28,8 @@ class GRAFCETStep : public QState
 public:
     explicit GRAFCETStep(QString name, int period_ms = 100, const std::function<void()>& N = nullptr, const std::function<void()>& P1 = nullptr, const std::function<void()>& P0 = nullptr);
     ~GRAFCETStep();
-    void changePeriod(int period_ms);
+    void setPeriod(int period_ms);
+    int getPeriod();
 
 protected:
     void onEntry(QEvent *event) ;

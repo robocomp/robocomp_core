@@ -53,6 +53,7 @@ class FPSCounter
 		{	
 			auto end = std::chrono::high_resolution_clock::now();
 			auto elapsed = std::chrono::duration<double>(end - begin).count() * 1000;
+            period = msPeriod;
 			if( elapsed > msPeriod)
 			{
 				last_period = elapsed/cont;
@@ -69,6 +70,10 @@ class FPSCounter
 		float get_period() const
         {
             return last_period;
+        }
+        float get_frequency() const
+        {
+            return 1.f/get_period()*period;
         }
 
         float get_cpu_use()
@@ -124,9 +129,10 @@ class FPSCounter
             return i;
         }
 		std::chrono::time_point<std::chrono::high_resolution_clock> begin;
-		int cont = 0;
+		unsigned int cont = 0;
 		float last_period = 0;
         clock_t lastCPU, lastSysCPU, lastUserCPU;
         int numProcessors;
+        int period = 1000; //default period in ms
 };
 

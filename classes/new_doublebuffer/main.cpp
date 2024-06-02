@@ -91,6 +91,7 @@ int main()
 {
     //DoubleBuffer<std::tuple<int, float>, std::tuple<std::string, std::string>> buffer(5, 1); // Circular buffer size of 20 elements, thread pool size of 4
     DoubleBuffer<std::tuple<int, float>, std::tuple<std::string, std::string>> buffer;
+    //DoubleBuffer<std::tuple<int>, std::tuple<int>> buffer;
     buffer.set_buffer_size(10);
 
     std::thread producerThread(producer, std::ref(buffer));

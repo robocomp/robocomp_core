@@ -323,6 +323,7 @@
       <change beforePath="$PROJECT_DIR$/../../interfaces/IDSLs/rcdns.idsl" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../interfaces/IDSLs/soundCapture.idsl" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../interfaces/IDSLs/stewart3L1R.idsl" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../robocomp_core/classes/new_doublebuffer/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../../robocomp_core/classes/new_doublebuffer/main.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../tools/CMakeLists.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../tools/README.md" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../tools/cli/CMakeLists.txt" beforeDir="false" />
@@ -1423,7 +1424,7 @@
     &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
     &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;development&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/pbustos/robocomp/classes/threadpool/threadpool.h&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/pbustos/robocomp/classes/doublebuffer/DoubleBuffer.h&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -1433,6 +1434,11 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="RunAnythingCache">
+    <option name="myCommands">
+      <command value="error: no matching function for call to ‘DoubleBuffer&lt;std::tuple&lt;int, float&gt;, std::tuple&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt; &gt;::convert_is_possible(std::remove_reference&lt;std::tuple&lt;int, float&gt;&amp;&gt;::type, std::tuple&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;&amp;, std::function&lt;std::tuple&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;(std::tuple&lt;int, float&gt;&amp;&amp;)&gt;&amp;)’    65 |                                       if(this-&gt;convert_is_possible(std::move(inputs), temp, transform))" />
+    </option>
+  </component>
   <component name="RunManager">
     <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
       <method v="2">
@@ -1453,7 +1459,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1717315764569</updated>
-      <workItem from="1717315765586" duration="3848000" />
+      <workItem from="1717315765586" duration="18760000" />
     </task>
     <servers />
   </component>

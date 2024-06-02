@@ -1,5 +1,5 @@
 //
-// Created by robolab on 24/07/18.
+// Created by robolab on 24/07/24.
 // This class is a generic container for a thread-safe, timed, threaded doublebuffer used to transfer data between threads.
 // For example, between the main thread of a component and the (threaded) middleware stubs
 // Example of DoubleBuffer creation with default converters between input and output types:

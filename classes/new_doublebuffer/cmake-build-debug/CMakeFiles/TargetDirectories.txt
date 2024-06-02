@@ -1,0 +1,3 @@
+/home/pbustos/robocomp/classes/new_doublebuffer/cmake-build-debug/CMakeFiles/new_doublebuffer.dir
+/home/pbustos/robocomp/classes/new_doublebuffer/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/pbustos/robocomp/classes/new_doublebuffer/cmake-build-debug/CMakeFiles/rebuild_cache.dir

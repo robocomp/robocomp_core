@@ -14,31 +14,31 @@
 //           buffer.put<0>(std::move(laserData), timestamp); // inserts the
 //           laser data value to the queue 0. buffer.put<1>("foo", timestamp);
 //           // inserts the laser data value to the queue 1.
-//      use: auto [laser, str] = buffer.take(timestamp)  // consume the nearest
-//      values to a timestamp.
-//           auto [laser, str] = buffer.take(timestamp, max_diff)  // consume
+//      use: auto [laser, str] = buffer.read(timestamp)  // return the nearest
+//      values to a timestamp. (does not consume it)
+//           auto [laser, str] = buffer.read(timestamp, max_diff)  // return
 //           the nearest values to a timestamp given a max_difference. auto
-//           [laser, str] = buffer.take_first() // consumes the first elements
+//           [laser, str] = buffer.read_first() // return the first element
 //           of the queues. It doesn't check difference
 //           //Advanced use: can return unexpected values if not handled
 //           carefully.
 //           //between timestamps, so results may be wrong if there are missing
 //           values in some of the queues. auto [laser, str] =
-//           buffer.take_last()  // consumes the first elements of the queues.
+//           buffer.read_last()  // return the first elements of the queues.
 //           It can return inconsistent values if some
 //           //queue was not populated with the last timestamp.
-//           auto [laser, str] = buffer.take_last(max_diff)  // consumes the
-//           first elements of the queues. It only consumes the last element
+//           auto [laser, str] = buffer.read_last(max_diff)  // return the
+//           first elements of the queues. It only returns the last element
 //           //from queues when the difference between the last timestamp and
 //           the last element of the queues in less than `max_diff`.
 //           //It is also possible to use the functions to retrieve elements
-//           from specific queues only. auto str = buffer.take<0>(timestamp);
+//           from specific queues only. auto str = buffer.read<0>(timestamp);
 //           //Only returns the element from the InOut<std::string, std::string>
 //           queue. The other queues
 //           //(InOut<RoboCompLaser::TLaserData, RoboCompLaser::TLaserData>)
 //           still has a value.
 //
-// Every take operation consumes the value from the queue, returns an optional
+// Every read operation consumes the value from the queue, returns an optional
 // and allows passing a max_time_diff to consider two values part of the same
 // time group. Example of Buffer creation with user-defined converter from input
 // to output types
@@ -51,16 +51,14 @@
 
 #include <atomic>
 #include <functional>
-#include <future>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <mutex>
 #include <optional>
-#include <queue>
+#include <deque>
 #include <ranges>
 #include <shared_mutex>
-#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -110,27 +108,26 @@ public:
 
   ~BufferSync() {};
 
-  auto take_first() -> std::tuple<std::optional<typename DBs::O>...> {
+  auto read_first() -> std::tuple<std::optional<typename DBs::O>...> {
     constexpr auto seq = std::make_index_sequence<DBs_size>{};
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      return take_first<Is...>();
+      return read_first<Is...>();
     }(seq);
   }
 
-  template <size_t... idx> auto take_first() {
+  template <size_t... idx> auto read_first() {
 
     auto ret = subtuple<idx...>();
 
     if (empty.load()) {
       return ret;
     }
-    std::unique_lock lock(bufferMutex);
+    std::shared_lock lock(bufferMutex);
 
     (
         [](auto &q, auto &r) {
           if (!q.empty()) {
-            r = std::move(q.front().first);
-            q.pop_front();
+            r = q.front().first;
           }
         }(std::get<idx>(_out), std::get<idx>(ret)),
         ...);
@@ -142,30 +139,29 @@ public:
     return ret;
   }
 
-  auto take_last(size_t max_diff = std::numeric_limits<size_t>::max())
+  auto read_last(size_t max_diff = std::numeric_limits<size_t>::max())
       -> std::tuple<std::optional<typename DBs::O>...> {
     constexpr auto seq = std::make_index_sequence<DBs_size>{};
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      return take_last<Is...>(max_diff);
+      return read_last<Is...>(max_diff);
     }(seq);
   }
 
   template <size_t... idx>
-  auto take_last(size_t max_diff = std::numeric_limits<size_t>::max()) {
+  auto read_last(size_t max_diff = std::numeric_limits<size_t>::max()) {
 
     auto ret = subtuple<idx...>();
 
     if (empty.load()) {
       return ret;
     }
-    std::unique_lock lock(bufferMutex);
+    std::shared_lock lock(bufferMutex);
 
     size_t max = *std::max_element(last_write.begin(), last_write.end());
     (
         [max, max_diff](auto &q, auto &r) {
           if (!q.empty() && (max - q.back().second < max_diff)) {
-            r = std::move(q.back().first);
-            q.pop_back();
+            r = q.back().first;
           }
         }(std::get<idx>(_out), std::get<idx>(ret)),
         ...);
@@ -177,17 +173,17 @@ public:
     return ret;
   }
 
-  auto take(size_t timestamp,
+  auto read(size_t timestamp,
             size_t max_diff = std::numeric_limits<size_t>::max())
       -> std::tuple<std::optional<typename DBs::O>...> {
     constexpr auto seq = std::make_index_sequence<DBs_size>{};
     return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-      return take<Is...>(timestamp, max_diff);
+      return read<Is...>(timestamp, max_diff);
     }(seq);
   }
 
   template <size_t... idx>
-  auto take(size_t timestamp,
+  auto read(size_t timestamp,
             size_t max_diff = std::numeric_limits<size_t>::max()) {
     auto ret = subtuple<idx...>();
 
@@ -195,7 +191,7 @@ public:
       return ret;
     }
 
-    std::unique_lock lock(bufferMutex);
+    std::shared_lock lock(bufferMutex);
 
     size_t dropped = 0;
     (
@@ -209,8 +205,7 @@ public:
           auto it_idx = std::min(diffs.begin(), diffs.end()) - diffs.begin();
           auto it = q.begin() + it_idx;
           if (it != q.end() && timestamp - it->second <= max_diff) {
-            r = std::move(it->first);
-            q.erase(it);
+            r = it->first;
           }
         }(std::get<idx>(_out), std::get<idx>(ret)),
         ...);
@@ -235,10 +230,11 @@ public:
           std::unique_lock lock(this->bufferMutex);
           last_write[idx] =
               std::chrono::steady_clock::now().time_since_epoch().count();
-          std::get<idx>(_out).emplace_back(std::move(temp), timestamp);
-          if (std::get<idx>(_out).size() > queue_size) {
+
+          if (std::get<idx>(_out).size() + 1 > queue_size) {
             std::get<idx>(_out).pop_front();
           }
+          std::get<idx>(_out).emplace_back(std::move(temp), timestamp);
 
           empty.store(false);
         });

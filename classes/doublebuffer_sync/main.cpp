@@ -41,7 +41,7 @@ void consumer(BufferSync<InOut<int, float>, InOut<std::string, std::string>> &bu
 
         // Get the most recent data when target time is not specified
 
-        auto [in, f] = buffer.take_last();
+        auto [in, f] = buffer.read_last();
         if(in.has_value())
             std::cout << "Read most recent data at " << ms << ": " << in.value()  << std::endl;
 

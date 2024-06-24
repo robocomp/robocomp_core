@@ -68,8 +68,11 @@ IF (NOT QT.CMAKE)
 
 	IF (USE_QT5)
 		MESSAGE( STATUS "COMPILING WITH QT5" )
-		find_package(Qt5 REQUIRED COMPONENTS Gui Widgets Sql Core OpenGL Xml XmlPatterns )
-		set(QT_LIBRARIES Qt5::Gui Qt5::Core Qt5::Widgets Qt5::Sql Qt5::OpenGL Qt5::Xml Qt5::XmlPatterns)
+		find_package(Qt5 REQUIRED COMPONENTS Gui Widgets Sql Core OpenGL Xml XmlPatterns QGLViewer-qt5)
+		set(QT_LIBRARIES Qt5::Gui Qt5::Core Qt5::Widgets Qt5::Sql Qt5::OpenGL Qt5::Xml Qt5::XmlPatterns Qt5::QGLViewer-qt5)
+
+		list(APPEND SOURCES $ENV{ROBOCOMP}/classes/abstract_graphic_viewer_qt5/abstract_graphic_viewer.cpp)
+		list(APPEND HEADERS $ENV{ROBOCOMP}/classes/abstract_graphic_viewer_qt5/abstract_graphic_viewer.h)
 		
 		MACRO(QT_WRAP_CPP output )
 			FOREACH( input_file ${ARGN} )
@@ -89,8 +92,23 @@ IF (NOT QT.CMAKE)
 
 	IF (USE_QT6)
 		MESSAGE( STATUS "COMPILING WITH QT6" )
-		find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core OpenGL Xml  )
-		set(QT_LIBRARIES Qt6::Gui Qt6::Core Qt6::Widgets Qt6::OpenGL Qt6::Xml)
+		
+
+		IF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+			message(STATUS "Configuring for x86_64 architecture")
+			add_definitions(-I/usr/include/x86_64-linux-gnu/qt6/QtOpenGLWidgets/)
+		ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+			message(STATUS "Configuring for ARM architecture")
+			add_definitions(-I/usr/include/arm-linux-gnueabihf/qt6/QtOpenGLWidgets/)
+		ELSE()
+			message(WARNING "Unknown architecture")
+		ENDIF()
+
+		find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core OpenGL Xml Core Widgets StateMachine)
+		set(QT_LIBRARIES Qt6::Gui Qt6::Core Qt6::Widgets Qt6::OpenGL Qt6::Xml Qt6::Core Qt6::Widgets Qt6::StateMachine Qt6OpenGLWidgets QGLViewer-qt6)
+
+		LIST(APPEND SOURCES $ENV{ROBOCOMP}/classes/abstract_graphic_viewer/abstract_graphic_viewer.cpp)
+		LIST(APPEND HEADERS $ENV{ROBOCOMP}/classes/abstract_graphic_viewer/abstract_graphic_viewer.h)
 
 		MACRO(QT_WRAP_CPP output )
 			FOREACH( input_file ${ARGN} )

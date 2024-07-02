@@ -95,5 +95,7 @@ int main()
     producerThread.join();
     consumerThread.join();
 
+    buffer.show();
+
     return 0;
 }

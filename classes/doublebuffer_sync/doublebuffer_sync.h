@@ -38,7 +38,7 @@
 //           //(InOut<RoboCompLaser::TLaserData, RoboCompLaser::TLaserData>)
 //           still has a value.
 //
-// Every read operation consumes the value from the queue, returns an optional
+// Every read operation returns a value from the queue without consiming it, returns an optional
 // and allows passing a max_time_diff to consider two values part of the same
 // time group. Example of Buffer creation with user-defined converter from input
 // to output types

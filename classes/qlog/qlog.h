@@ -28,13 +28,7 @@
 #endif
 
 #ifndef Q_MOC_RUN
-	#include <boost/format.hpp> 
-
-using namespace std;
-
-
-
-#include <boost/format.hpp>
+	using namespace std;
 #endif
 
 

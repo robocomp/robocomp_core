@@ -13,6 +13,7 @@ from PySide6.QtCore import QTimer
 
 import random
 from QOpenGL3DViewer import QOpenGL3DViewer
+import numpy as np
 
 
 class Q3DViewer(QWidget):
@@ -28,27 +29,29 @@ class Q3DViewer(QWidget):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.generate_things)
-        self.timer.start(16)
+        self.timer.start(100)
+    def __del__(self):
+         self.timer.stop()
 
 
     def generate_things(self):
-            """Generar 100 esferas alrededor de los cubos."""
-            cube = []
-            points = []
+        """Generar puntos aleatorios para el renderizado."""
+        distance = 20
+        num_points = self.ui.slider_points.value()
+        num_cubes = self.ui.slider_cube.value()
 
-            distance = 20
+        cube = np.random.uniform(-0, 10, 3*num_cubes).reshape((num_cubes,3))
+        rot = np.random.uniform(0, 360, 3*num_cubes).reshape((num_cubes,3))
+        size = np.random.uniform(-0, 3, 3*num_cubes).reshape((num_cubes,3))
+        color = np.random.uniform(0, 1, 3*num_cubes).reshape((num_cubes,3))
 
-            for _ in range(self.ui.slider_cube.value()):
-                cube.append((random.uniform(-0, 10), random.uniform(-0, 10), random.uniform(-0, 10)))
+        points = np.random.uniform(-distance, distance, 3*num_points).reshape((num_points,3))
 
-            for _ in range(self.ui.slider_points.value()):
-                x = random.uniform(-distance, distance)
-                y = random.uniform(-distance, distance)
-                z = random.uniform(-distance, distance)
-                points.append([x, y, z])
+        self.opengl_widget.set_cube(cube, size , rot, color)
+        self.opengl_widget.set_points(points)
 
-            self.opengl_widget.set_cube(cube)
-            self.opengl_widget.set_points(points)
+        self.ui.label_cube.setText(f"{num_cubes} CUBES")
+        self.ui.label_points.setText(f"{num_points} POINTS")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

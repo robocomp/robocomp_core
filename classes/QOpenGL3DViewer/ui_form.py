@@ -62,7 +62,7 @@ class Ui_Q3DViewer(object):
 
         self.slider_points = QSlider(self.verticalLayoutWidget_3)
         self.slider_points.setObjectName(u"slider_points")
-        self.slider_points.setMaximum(28800)
+        self.slider_points.setMaximum(50000)
         self.slider_points.setOrientation(Qt.Horizontal)
 
         self.verticalLayout_2.addWidget(self.slider_points)

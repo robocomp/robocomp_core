@@ -95,38 +95,72 @@ MACRO( ROBOCOMP_WRAP_ICE )
 ENDMACRO( ROBOCOMP_WRAP_ICE )
 
 
-MACRO( ROBOCOMP_IDSL_TO_ICE )
-  STRING (REPLACE "/" "_" SPECIFIC_TARGET "${CMAKE_CURRENT_SOURCE_DIR}") 
-  ADD_CUSTOM_TARGET(ICES_${SPECIFIC_TARGET} ALL)
-  SET( SLICE_PATH "$ENV{SLICE_PATH};$ENV{ROBOCOMP}/interfaces/IDSLs;/opt/robocomp/interfaces/IDSLs;./ice_files/;")
+MACRO(ROBOCOMP_IDSL_TO_ICE)
+    STRING(REPLACE "/" "_" SPECIFIC_TARGET "${CMAKE_CURRENT_SOURCE_DIR}")
+    ADD_CUSTOM_TARGET(ICES_${SPECIFIC_TARGET} ALL)
+    SET(SLICE_PATH "$ENV{SLICE_PATH};$ENV{ROBOCOMP}/interfaces/IDSLs;/opt/robocomp/interfaces/IDSLs;./ice_files/;")
 
-  FOREACH( input_file ${ARGN} )
+    if(NOT DEFINED RC_OUTPUT_ICE_DIR)
+        SET(RC_OUTPUT_ICE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+    endif()
+    message(STATUS "Generating ICE files in directory: ${RC_OUTPUT_ICE_DIR}")
+    FILE(MAKE_DIRECTORY "${RC_OUTPUT_ICE_DIR}")
 
-    set(found FALSE)
+    FOREACH(input_file ${ARGN})
+        set(found FALSE)
+        
+        FOREACH(SPATH ${SLICE_PATH})
+            IF(EXISTS "${SPATH}/${input_file}.idsl")
+                SET(INPUT_IDSL "${SPATH}/${input_file}.idsl")
+                SET(OUTPUT_ICE "${RC_OUTPUT_ICE_DIR}/${input_file}.ice")
+                
+                # Do it need to renerate
+                SET(SHOULD_REGENERATE TRUE)
+                
+                IF(EXISTS "${OUTPUT_ICE}")
+                    # Compare timestamps
+                    FILE(TIMESTAMP "${INPUT_IDSL}" IDSL_TIME)
+                    FILE(TIMESTAMP "${OUTPUT_ICE}" ICE_TIME)
+                    
+                    IF("${IDSL_TIME}" STRLESS "${ICE_TIME}")
+                        SET(SHOULD_REGENERATE FALSE)
+                    ENDIF()
+                ENDIF()
+                
+                IF(SHOULD_REGENERATE)
+                    MESSAGE(STATUS "Adding rule to generate ${OUTPUT_ICE} from ${INPUT_IDSL}")
+                    add_custom_command(
+                        OUTPUT "${OUTPUT_ICE}"
+                        COMMAND robocompdsl ${INPUT_IDSL} ${OUTPUT_ICE}
+                        DEPENDS ${INPUT_IDSL}
+                        COMMENT "Generating ${OUTPUT_ICE} from ${INPUT_IDSL}"
+                        VERBATIM
+                    )
+                    
+                    if(NOT TARGET "ICE_${input_file}_target")
+                      add_custom_target(
+                          "ICE_${input_file}_target"
+                          ALL
+                          DEPENDS "${OUTPUT_ICE}"
+                      )
+                      add_dependencies(ICES_${SPECIFIC_TARGET} "ICE_${input_file}_target")
+                    endif()
+                    
+                    add_dependencies(ICES_${SPECIFIC_TARGET} "ICE_${input_file}_target")
+                ELSE()
+                    MESSAGE(STATUS "Skipping generation of ${OUTPUT_ICE} - up to date")
+                ENDIF()
+                
+                set(found TRUE)
+                break()
+            ENDIF()
+        ENDFOREACH(SPATH ${SLICE_PATH})
 
-    FOREACH (SPATH ${SLICE_PATH})
-        IF (EXISTS "${SPATH}/${input_file}.idsl")
-        MESSAGE(STATUS "BU Adding rule to generate ${CMAKE_CURRENT_SOURCE_DIR}/${input_file}.ice from ${SPATH}/${input_file}.idsl")
-        add_custom_command(
-            COMMAND robocompdsl ${SPATH}/${input_file}.idsl ${CMAKE_CURRENT_SOURCE_DIR}/${input_file}.ice
-#            COMMAND robocompdsl ${SPATH}/${input_file}.idsl ${input_file}.ice
-            DEPENDS ${SPATH}/${input_file}.idsl
-            COMMENT "BU robocompdsl ${SPATH}/${input_file}.idsl ${CMAKE_CURRENT_SOURCE_DIR}/${input_file}.ice"
-            TARGET ICES_${SPECIFIC_TARGET}
-        )
-        set(found TRUE)
-        break()
-        ENDIF (EXISTS "${SPATH}/${input_file}.idsl")
-    ENDFOREACH (SPATH ${SLICE_PATH})
-
-    if (found EQUAL FALSE)
-      MESSAGE(FATAL_ERROR "${input_file}.idsl not found in (${SLICE_PATH}).")
-#     else ()
-#       MESSAGE(STATUS "Found! ${input_file} -- ${SPATH} ")
-    endif(found EQUAL FALSE)
-
-    ENDFOREACH( input_file )
-ENDMACRO( ROBOCOMP_IDSL_TO_ICE )
+        if(NOT found)
+            MESSAGE(FATAL_ERROR "${input_file}.idsl not found in (${SLICE_PATH}).")
+        endif()
+    ENDFOREACH(input_file)
+ENDMACRO()
 
 MACRO( ROBOCOMP_ICE_TO_SRC )
   SET (SLICE_PATH "./src/;")

@@ -8,6 +8,9 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <chrono>
+#include <iostream>
+#include <functional>
 
 class FPSCounter
 {

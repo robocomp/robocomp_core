@@ -88,7 +88,7 @@ void qLog::send(std::string _file, int line, std::string func, std::string strng
 		fullpath = _file;
 		sender = "";
 		QStringList list1 = QString::fromStdString(_file).split("/");
-		sender = PROGRAM_NAME;
+		//sender = PROGRAM_NAME;
 		file = list1[list1.size()-1].toStdString();
 		method = func;
 		nLine = line;

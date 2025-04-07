@@ -22,12 +22,9 @@ template<typename T>
 class LockFreeCircularBuffer
 {
     public:
-        using value_type = T; // <-- Add this alias!
+        using value_type = T;
         LockFreeCircularBuffer(size_t capacity)
-            : buffer_(capacity), capacity_(capacity)
-        {
-            static_assert(std::atomic<size_t>::is_always_lock_free, "Atomic size_t must be lock-free!");
-        }
+            : buffer_(capacity), capacity_(capacity) {}
 
         void push(const T& item)
         {
@@ -43,25 +40,20 @@ class LockFreeCircularBuffer
             head_.store((head + 1) % (2 * capacity_), std::memory_order_release);
         }
 
-        std::optional<T> peek(size_t offset) const
-        {
-            const size_t tail = tail_.load(std::memory_order_acquire);
-            const size_t head = head_.load(std::memory_order_acquire);
-
-            if (tail + offset >= head)
-                return std::nullopt;
-
-            return buffer_[(tail + offset) % capacity_];
-        }
-
         size_t size() const
         {
             const size_t head = head_.load(std::memory_order_acquire);
             const size_t tail = tail_.load(std::memory_order_acquire);
-            if (head >= tail)
-                return head - tail;
-            else
-                return (head + 2 * capacity_) - tail;
+            return (head >= tail) ? head - tail : (head + 2 * capacity_) - tail;
+        }
+
+        std::optional<std::reference_wrapper<const T>> peek_latest(size_t idx_from_end) const
+        {
+            const size_t head = head_.load(std::memory_order_acquire);
+            const size_t size = this->size();
+            if (idx_from_end >= size)
+                return std::nullopt;
+            return std::cref(buffer_[(head + 2 * capacity_ - 1 - idx_from_end) % capacity_]);
         }
 
     private:
@@ -70,6 +62,7 @@ class LockFreeCircularBuffer
         std::atomic<size_t> head_{0};
         std::atomic<size_t> tail_{0};
 };
+
 
 // SyncBuffer
 
@@ -127,57 +120,125 @@ class SyncBuffer
         std::optional<OutputTuple> read(std::optional<size_t> max_samples_to_consider = std::nullopt)
         {
             const auto now = now_microseconds();
-            auto candidates = get_all_candidates(max_samples_to_consider);
 
+            // Step 1: Preload timestamps arrays
+            using TimestampIndex = std::pair<double, size_t>; // (timestamp, index_in_buffer)
+            auto timestamp_arrays = std::apply(
+                [&](const auto&... buffers)
+                {
+                    return std::make_tuple(
+                        preload_timestamps(buffers, max_samples_to_consider)...
+                    );
+                },
+                buffers_
+            );
+
+            // Step 2: Search best combination
             double best_spread = std::numeric_limits<double>::max();
-            InputTuple best_tuple;
+            std::array<size_t, sizeof...(SensorPairs)> best_indices{};
             bool found = false;
 
-            // Find best combination (small N, brute-force)
-            std::vector<size_t> indices(sizeof...(SensorPairs), 0);
-
-            while (true)
+            // Use first sensor as base
+            const auto& base_array = std::get<0>(timestamp_arrays);
+            for (const auto& [base_time, base_idx] : base_array)
             {
-                if (!valid_combination(candidates, indices)) break;
-                auto tuple = build_tuple(candidates, indices);
-                if (const double spread = compute_spread(tuple); spread < best_spread && spread <= max_allowed_spread_)
+                std::array<size_t, sizeof...(SensorPairs)> current_indices{base_idx};
+                std::array<double, sizeof...(SensorPairs)> current_times{base_time};
+
+                bool valid = true;
+
+                [&]<size_t... Is>(std::index_sequence<Is...>)
+                {
+                    (..., ([&]
+                    {
+                        if constexpr (Is > 0)
+                        {
+                            const auto& arr = std::get<Is>(timestamp_arrays);
+                            auto it = std::lower_bound(arr.begin(), arr.end(), base_time,
+                                [](const TimestampIndex& ti, double t) { return ti.first < t; });
+
+                            if (it == arr.end())
+                            {
+                                valid = false;
+                                return;
+                            }
+
+                            // Buscar el más cercano (puede ser it o it-1)
+                            if (it != arr.begin())
+                            {
+                                auto prev = std::prev(it);
+                                if (std::abs(prev->first - base_time) < std::abs(it->first - base_time))
+                                    it = prev;
+                            }
+
+                            // it ahora apunta al timestamp más cercano
+                            current_indices[Is] = it->second;
+                            current_times[Is] = it->first;
+                        }
+                    }()));
+                }(std::make_index_sequence<sizeof...(SensorPairs)>{});
+
+                if (!valid) continue;
+
+                auto [min_it, max_it] = std::minmax_element(current_times.begin(), current_times.end());
+                double spread = *max_it - *min_it;
+
+                if (spread <= max_allowed_spread_ && spread < best_spread)
                 {
                     best_spread = spread;
-                    best_tuple = tuple;
+                    best_indices = current_indices;
                     found = true;
                 }
-                if (!increment_indices(candidates, indices))
-                    break;
             }
 
-            if (!found)
+            if (!found || best_spread > max_allowed_spread_)
             {
                 if (now - last_success_timestamp_ > timeout_)
-                {
                     last_success_timestamp_ = now;
-                    return std::nullopt;
-                }
-                else
-                {
-                    return std::nullopt;
-                }
+                return std::nullopt;
             }
 
-            // Parallel transform raw tuple -> output tuple (corrected with index_sequence)
+            // Step 3: Peek and build output tuple
             OutputTuple output_tuple;
 
             [&]<size_t... Is>(std::index_sequence<Is...>)
             {
-                ((std::get<Is>(output_tuple) = std::get<Is>(transforms_)(std::get<Is>(best_tuple))), ...);
+                (..., ([&]
+                {
+                    auto& buffer = std::get<Is>(buffers_);
+                    auto opt_input = buffer->peek_latest(best_indices[Is]);
+                    if (!opt_input) throw std::runtime_error("Invalid peek in SyncBuffer");
+
+                    auto& transform = std::get<Is>(transforms_);
+                    std::get<Is>(output_tuple) = transform(opt_input.value().get());
+                }()));
             }(std::make_index_sequence<sizeof...(SensorPairs)>{});
 
             last_success_timestamp_ = now;
             return output_tuple;
         }
 
+        // Helper: preload timestamps
+        template<typename BufferPtr>
+        auto preload_timestamps(const BufferPtr& buffer_ptr, std::optional<size_t> max_samples)
+        {
+            const size_t available = buffer_ptr->size();
+            const size_t to_read = max_samples.has_value() ? std::min(max_samples.value(), available) : available;
+            std::vector<std::pair<double, size_t>> timestamps;
+            timestamps.reserve(to_read);  // <- Aquí ya to_read existe ✅
+
+            for (size_t j = 0; j < to_read; ++j)
+                if (auto opt = buffer_ptr->peek_latest(available - 1 - j); opt.has_value())
+                    timestamps.emplace_back(opt.value().get().timestamp * timestamp_scale_factor, available - 1 - j);
+
+            std::ranges::sort(timestamps); // important for binary search!
+            return timestamps;
+}
+
     private:
         std::tuple<std::unique_ptr<LockFreeCircularBuffer<typename SensorPairs::first_type>>...> buffers_;
         std::tuple<std::function<typename SensorPairs::second_type(const typename SensorPairs::first_type&)>...> transforms_;
+        static constexpr double timestamp_scale_factor = 1000.0;
 
         double max_allowed_spread_;
         double timeout_;
@@ -214,7 +275,7 @@ class SyncBuffer
             const size_t to_read = max_samples.has_value() ? std::min(max_samples.value(), available) : available;
 
             for (size_t j = 0; j < to_read; ++j)
-                candidates.push_back(buffer_ptr->peek(available - 1 - j));
+                candidates.push_back(buffer_ptr->peek_latest(available - 1 - j));
 
             return candidates;
         }

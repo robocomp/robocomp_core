@@ -325,6 +325,7 @@ class SyncBuffer
             last_success_timestamp_ = now;
             return output_tuple;
         }
+    
 
         // Helper: preload timestamps
         template<typename BufferPtr>
@@ -341,7 +342,7 @@ class SyncBuffer
 
             std::ranges::sort(timestamps); // important for binary search!
             return timestamps;
-}
+        }
 
     private:
         std::tuple<std::unique_ptr<LockFreeCircularBuffer<typename SensorPairs::first_type>>...> buffers_;

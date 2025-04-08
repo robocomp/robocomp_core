@@ -1,8 +1,95 @@
-// Final professional-grade SyncBuffer
-// Using variadic std::pair<InputType, OutputType> per sensor
-// Transform lambda set at push time
-// Transformations happen in parallel at read time using std::execution::par
-// Clean C++23 code
+/*
+================================================================================
+SyncBuffer - High-performance multi-sensor temporal synchronization
+
+Author: [Pablo Bustos]
+Date: [8/04/2025]
+
+Description:
+------------
+SyncBuffer is a generic, high-performance C++23 class designed to synchronize
+data streams from multiple asynchronous sensors (e.g., cameras, lidars, radars).
+It selects, at each read(), the set of input samples with the closest timestamps
+across all sensors within a user-defined maximum allowed spread.
+
+Technologies used:
+-------------------
+- C++23 features: concepts, structured bindings, constexpr lambdas, std::tuple_apply.
+- Lock-free circular buffers for thread-safe, low-latency data storage.
+- Binary search (std::lower_bound) for fast matching.
+- Move semantics and reference wrappers for zero-copy efficiency.
+- Static compile-time checks with custom concepts for data safety.
+- Optional parallel transformation of input to output types.
+
+Key features:
+-------------
+- Variadic design: supports arbitrary number and types of sensors.
+- Per-sensor customizable transform lambdas.
+- Hard real-time behavior with user-defined max spread and timeout.
+- Automatic fallback if no good match is found.
+- Extensible and lightweight (no dependencies beyond STL).
+
+Example usage:
+--------------
+
+```cpp
+using LidarImage = RoboCompLidar3D::TDataImage;
+using CameraImage = RoboCompCamera360RGB::TImage;
+
+// Create a SyncBuffer for Lidar + Camera
+SyncBuffer<std::pair<LidarImage, ProcessedLidar>, std::pair<CameraImage, ProcessedCamera>>
+        sync_buffer(30 //buffer capacity//, 10000.0 //max spread in µs//, 100000.0 //timeout in µs//);
+
+// Push new data
+sync_buffer.push<0>(new_lidar_data, [](const LidarImage& in) { return process_lidar(in); });
+sync_buffer.push<1>(new_camera_data, [](const CameraImage& in) { return process_camera(in); });
+
+// Read synchronized data
+if (auto synced = sync_buffer.read())
+{
+    auto [processed_lidar, processed_camera] = *synced;
+    // Use synchronized and transformed data...
+}
+
+================================================================================
+Advanced Tips for SyncBuffer
+--------------------------------------------------------------------------------
+
+⚡ Performance Optimization:
+- Choose buffer size carefully:
+  * Small: less latency, but higher risk of missing matches under bursty sensors.
+  * Large: smoother matches but slight memory increase (~KBs per sensor).
+
+- Tune `max_allowed_spread_usec` according to sensor timestamp jitter.
+  * For hardware-triggered sensors, a small spread (e.g., 1000-5000 µs) is enough.
+  * For free-running or networked sensors, you may need 5000-10000 µs.
+
+- Prefer setting your timestamps in microseconds (`µs`) for higher precision matching.
+
+- Enable `std::execution::par` (parallel execution) in the transformation phase
+  if your transforms are heavy and independent (e.g., decoding compressed data).
+
+⚙️ Notes on Real-Time Behavior:
+- `read()` always respects timeout behavior.
+- If no synchronized set is found within the timeout, it returns `nullopt`.
+- Always handle the `std::optional` returned by `read()` safely.
+
+🛡️ Type Safety:
+- Compile-time concepts check that your input types:
+  * Have a `.timestamp`.
+  * Are copyable.
+
+- The system is zero-copy on input storage (internal references)
+  and move-efficient on output construction.
+
+📈 Potential Extensions (for advanced users):
+- Allow dynamic registration/deregistration of sensors at runtime.
+- Customize matching strategy (e.g., not only closest, but also interpolation).
+- Add timestamp prediction to anticipate missing samples under packet loss.
+
+================================================================================
+*/
+
 #pragma once
 
 #include <vector>
@@ -16,6 +103,20 @@
 #include <type_traits>
 #include <chrono>
 #include <array>
+
+//// CONCEPTS /////////////////////////////////////////////////
+
+// A type must have a .timestamp convertible to long double
+template<typename T>
+concept HasTimestamp = requires(T a) {
+    { a.timestamp } -> std::convertible_to<long double>;
+};
+
+// A type must be copyable
+template<typename T>
+concept Copyable = std::copy_constructible<T>;
+
+//////////////////////////////////////////////////////////////
 
 // Simple lock-free circular buffer for one producer/consumer
 template<typename T>
@@ -63,12 +164,19 @@ class LockFreeCircularBuffer
         std::atomic<size_t> tail_{0};
 };
 
-
-// SyncBuffer
-
+// Main class SyncBuffer
 template<typename... SensorPairs>
 class SyncBuffer
 {
+    static_assert((HasTimestamp<typename SensorPairs::first_type> && ...),
+                     "All input types must have a .timestamp convertible to long double");
+
+    static_assert((Copyable<typename SensorPairs::first_type> && ...),
+                  "All input types must be copyable");
+
+    static_assert((Copyable<typename SensorPairs::second_type> && ...),
+                  "All output types must be copyable");
+
     public:
         using InputTuple = std::tuple<typename SensorPairs::first_type...>;
         using OutputTuple = std::tuple<typename SensorPairs::second_type...>;
@@ -333,7 +441,6 @@ class SyncBuffer
                 },
                 tuple
             );
-
             auto [min_it, max_it] = std::minmax_element(timestamps.begin(), timestamps.end());
             return *max_it - *min_it;
         }

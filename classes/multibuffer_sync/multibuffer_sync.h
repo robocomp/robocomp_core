@@ -32,9 +32,8 @@ Key features:
 Example usage:
 --------------
 
-```cpp
 using LidarImage = RoboCompLidar3D::TDataImage;
-using CameraImage = RoboCompCamera360RGB::TImage;
+using CameraImage = RoboCompCamera360RGB::TImage;  (assumes these types have a timestamp field in milliseconds)
 
 // Create a SyncBuffer for Lidar + Camera
 SyncBuffer<std::pair<LidarImage, ProcessedLidar>, std::pair<CameraImage, ProcessedCamera>>
@@ -97,6 +96,7 @@ Advanced Tips for SyncBuffer
 #include <optional>
 #include <limits>
 #include <atomic>
+#include <memory>
 //#include <execution>
 #include <algorithm>
 #include <functional>
@@ -193,13 +193,23 @@ class SyncBuffer
         void push(InputType&& input, TransformFunc&& transform)
         {
             auto& buffer = std::get<SensorIdx>(buffers_);
-            buffer->push(std::forward<InputType>(input));  // ✅ move if possible
 
             auto& trans_func = std::get<SensorIdx>(transforms_);
             if (!trans_func)
             {
                 trans_func = std::forward<TransformFunc>(transform);
             }
+
+            // 🛡️ Check for duplicate timestamps
+            if (auto last = buffer->peek_latest(0); last.has_value())
+            {
+                if (std::abs(last->get().timestamp * timestamp_scale_factor - input.timestamp * timestamp_scale_factor) < duplicate_timestamp_epsilon)
+                {
+                    // Duplicate detected, skip push
+                    return;
+                }
+            }
+            buffer->push(std::forward<InputType>(input));  // ✅ move if possible
         }
 
         // Push without explicit transform (auto identity)
@@ -207,7 +217,6 @@ class SyncBuffer
         void push(InputType&& input)
         {
             auto& buffer = std::get<SensorIdx>(buffers_);
-            buffer->push(std::forward<InputType>(input));  // ✅ move if possible
 
             auto& trans_func = std::get<SensorIdx>(transforms_);
             if (!trans_func)
@@ -223,6 +232,18 @@ class SyncBuffer
                                   "Missing transform lambda: InputType != OutputType");
                 }
             }
+
+            // 🛡️ Check for duplicate timestamps
+            if (auto last = buffer->peek_latest(0); last.has_value())
+            {
+                if (std::abs(last->get().timestamp * timestamp_scale_factor - input.timestamp * timestamp_scale_factor) < duplicate_timestamp_epsilon)
+                {
+                    // Duplicate detected, skip push
+                    return;
+                }
+            }
+
+            buffer->push(std::forward<InputType>(input));  // ✅ move if possible
         }
 
         std::optional<OutputTuple> read(std::optional<size_t> max_samples_to_consider = std::nullopt)
@@ -325,7 +346,7 @@ class SyncBuffer
             last_success_timestamp_ = now;
             return output_tuple;
         }
-    
+
 
         // Helper: preload timestamps
         template<typename BufferPtr>
@@ -347,7 +368,8 @@ class SyncBuffer
     private:
         std::tuple<std::unique_ptr<LockFreeCircularBuffer<typename SensorPairs::first_type>>...> buffers_;
         std::tuple<std::function<typename SensorPairs::second_type(const typename SensorPairs::first_type&)>...> transforms_;
-        static constexpr double timestamp_scale_factor = 1000.0;
+        static constexpr double timestamp_scale_factor = 1000.0; // µs to seconds for timestamp conversion
+        static constexpr double duplicate_timestamp_epsilon = 1000.0; // µs, to avoid duplicates from the same sensor
 
         double max_allowed_spread_;
         double timeout_;

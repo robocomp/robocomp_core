@@ -128,18 +128,18 @@ class LockFreeCircularBuffer
             : buffer_(capacity), capacity_(capacity) {}
 
         void push(const T& item)
-        {
-            const size_t head = head_.load(std::memory_order_relaxed);
-            buffer_[head % capacity_] = item;
-            head_.store((head + 1) % (2 * capacity_), std::memory_order_release);
-        }
+            {
+                const uint64_t head = head_.load(std::memory_order_relaxed);
+                buffer_[head % capacity_] = item;
+                head_.store(head + 1, std::memory_order_release);
+            }
 
         void push(T&& item)
-        {
-            const size_t head = head_.load(std::memory_order_relaxed);
-            buffer_[head % capacity_] = std::move(item);
-            head_.store((head + 1) % (2 * capacity_), std::memory_order_release);
-        }
+            {
+                const uint64_t head = head_.load(std::memory_order_relaxed);
+                buffer_[head % capacity_] = std::move(item);
+                head_.store(head + 1, std::memory_order_release);
+            }
 
         size_t size() const
         {
@@ -153,15 +153,18 @@ class LockFreeCircularBuffer
             const size_t head = head_.load(std::memory_order_acquire);
             const size_t size = this->size();
             if (idx_from_end >= size)
+            {
+               qDebug() << "LockFreeCircularBuffer - Index out of bounds in peek_latest. Returning nullopt.";
                 return std::nullopt;
+            }
             return std::cref(buffer_[(head + 2 * capacity_ - 1 - idx_from_end) % capacity_]);
         }
 
     private:
         std::vector<T> buffer_;
         size_t capacity_;
-        std::atomic<size_t> head_{0};
-        std::atomic<size_t> tail_{0};
+        std::atomic<std::int64_t> head_{0}; // 500M years to overflow. We are safe here
+        std::atomic<std::int64_t> tail_{0};
 };
 
 // Main class SyncBuffer
@@ -250,32 +253,34 @@ class SyncBuffer
         {
             const auto now = now_microseconds();
 
-            // Step 1: Preload timestamps arrays
-            using TimestampIndex = std::pair<double, size_t>; // (timestamp, index_in_buffer)
+            // Step 1: Preload timestamp arrays
+            //using TimestampIndex = std::pair<double, size_t>; // (timestamp, index)
             auto timestamp_arrays = std::apply(
                 [&](const auto&... buffers)
                 {
-                    return std::make_tuple(
-                        preload_timestamps(buffers, max_samples_to_consider)...
-                    );
+                    return std::make_tuple(preload_timestamps(buffers, max_samples_to_consider)...);
                 },
-                buffers_
-            );
+                buffers_);
 
-            // Step 2: Search best combination
+            // Check if all buffers have data
+            if (const bool all_have_data = std::apply([](const auto&... arrs) { return (... && (!arrs.empty())); }, timestamp_arrays); !all_have_data)
+            {
+               qDebug() << "SyncBuffer - Empty buffers in read(). Returning nullopt.";
+                return std::nullopt;
+            }
+
+            // Step 2: Find best match across sensors
             double best_spread = std::numeric_limits<double>::max();
             std::array<size_t, sizeof...(SensorPairs)> best_indices{};
             bool found = false;
 
-            // Use first sensor as base
-            const auto& base_array = std::get<0>(timestamp_arrays);
-            for (const auto& [base_time, base_idx] : base_array)
+            // Iterate over all timestamps from the first sensor (base sensor)
+            for (const auto& base_array = std::get<0>(timestamp_arrays); const auto& [base_time, base_idx] : base_array)
             {
                 std::array<size_t, sizeof...(SensorPairs)> current_indices{base_idx};
                 std::array<double, sizeof...(SensorPairs)> current_times{base_time};
 
-                bool valid = true;
-
+                // Find closest timestamps in other sensors (no optimizations, linear search)
                 [&]<size_t... Is>(std::index_sequence<Is...>)
                 {
                     (..., ([&]
@@ -283,51 +288,48 @@ class SyncBuffer
                         if constexpr (Is > 0)
                         {
                             const auto& arr = std::get<Is>(timestamp_arrays);
-                            auto it = std::lower_bound(arr.begin(), arr.end(), base_time,
-                                [](const TimestampIndex& ti, double t) { return ti.first < t; });
+                            double min_diff = std::numeric_limits<double>::max();
+                            size_t closest_idx = 0;
 
-                            if (it == arr.end())
+                            // Linear search to guarantee correctness
+                            for (const auto& [t, idx] : arr)
                             {
-                                valid = false;
-                                return;
+                                double diff = std::abs(t - base_time);
+                                if (diff < min_diff)
+                                {
+                                    min_diff = diff;
+                                    closest_idx = idx;
+                                }
                             }
-
-                            // Buscar el más cercano (puede ser it o it-1)
-                            if (it != arr.begin())
-                            {
-                                auto prev = std::prev(it);
-                                if (std::abs(prev->first - base_time) < std::abs(it->first - base_time))
-                                    it = prev;
-                            }
-
-                            // it ahora apunta al timestamp más cercano
-                            current_indices[Is] = it->second;
-                            current_times[Is] = it->first;
+                            current_indices[Is] = closest_idx;
+                            current_times[Is] = base_time + min_diff;
                         }
                     }()));
                 }(std::make_index_sequence<sizeof...(SensorPairs)>{});
 
-                if (!valid) continue;
-
+                // Calculate spread
                 auto [min_it, max_it] = std::minmax_element(current_times.begin(), current_times.end());
-                double spread = *max_it - *min_it;
+                const double spread = *max_it - *min_it;
 
+                // Check spread against allowed max spread
                 if (spread <= max_allowed_spread_ && spread < best_spread)
                 {
                     best_spread = spread;
                     best_indices = current_indices;
                     found = true;
+
+                    // Early exit if perfect match (spread = 0)
+                    if (best_spread == 0.0) break;
                 }
             }
 
             if (!found || best_spread > max_allowed_spread_)
             {
-                if (now - last_success_timestamp_ > timeout_)
-                    last_success_timestamp_ = now;
+                qDebug() << "NO MATCH FOUND:" << "best_spread:" << best_spread << "allowed_spread:" << max_allowed_spread_;
                 return std::nullopt;
             }
 
-            // Step 3: Peek and build output tuple
+            // Step 3: Peek data and build output tuple
             OutputTuple output_tuple;
 
             [&]<size_t... Is>(std::index_sequence<Is...>)
@@ -336,7 +338,8 @@ class SyncBuffer
                 {
                     auto& buffer = std::get<Is>(buffers_);
                     auto opt_input = buffer->peek_latest(best_indices[Is]);
-                    if (!opt_input) throw std::runtime_error("Invalid peek in SyncBuffer");
+                    if (!opt_input)
+                        throw std::runtime_error("Invalid peek in SyncBuffer: index mismatch.");
 
                     auto& transform = std::get<Is>(transforms_);
                     std::get<Is>(output_tuple) = transform(opt_input.value().get());
@@ -347,29 +350,31 @@ class SyncBuffer
             return output_tuple;
         }
 
-
-        // Helper: preload timestamps
         template<typename BufferPtr>
         auto preload_timestamps(const BufferPtr& buffer_ptr, std::optional<size_t> max_samples)
-        {
-            const size_t available = buffer_ptr->size();
-            const size_t to_read = max_samples.has_value() ? std::min(max_samples.value(), available) : available;
-            std::vector<std::pair<double, size_t>> timestamps;
-            timestamps.reserve(to_read);  // <- Aquí ya to_read existe ✅
+            {
+                const size_t available = buffer_ptr->size();
+                const size_t to_read = max_samples.has_value() ? std::min(max_samples.value(), available) : available;
+                std::vector<std::pair<double, size_t>> timestamps;
+                timestamps.reserve(to_read);
 
-            for (size_t j = 0; j < to_read; ++j)
-                if (auto opt = buffer_ptr->peek_latest(available - 1 - j); opt.has_value())
-                    timestamps.emplace_back(opt.value().get().timestamp * timestamp_scale_factor, available - 1 - j);
-
-            std::ranges::sort(timestamps); // important for binary search!
-            return timestamps;
-        }
+                for (size_t j = 0; j < to_read; ++j)
+                {
+                    if (auto opt = buffer_ptr->peek_latest(j); opt.has_value())
+                        timestamps.emplace_back(opt.value().get().timestamp * timestamp_scale_factor, j);
+                }
+                // 🚨 NO sort here!!
+                return timestamps;
+            }
 
     private:
         std::tuple<std::unique_ptr<LockFreeCircularBuffer<typename SensorPairs::first_type>>...> buffers_;
         std::tuple<std::function<typename SensorPairs::second_type(const typename SensorPairs::first_type&)>...> transforms_;
         static constexpr double timestamp_scale_factor = 1000.0; // µs to seconds for timestamp conversion
         static constexpr double duplicate_timestamp_epsilon = 1000.0; // µs, to avoid duplicates from the same sensor
+        static constexpr double forced_acceptance_threshold_usec = 50000.0; // 30ms
+        static constexpr double max_forced_spread_usec = 100000.0; // 50ms
+
 
         double max_allowed_spread_;
         double timeout_;

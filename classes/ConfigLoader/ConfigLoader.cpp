@@ -198,7 +198,7 @@ void ConfigLoader::load(const std::string& filename) {
     std::locale originalLocale = std::locale::global(std::locale("en_US.UTF-8"));
     
     // Check the file extension and load the appropriate format
-    if (filename.ends_with(".toml")) {
+    if (filename.size() >= 5 && filename.substr(filename.size() - 5) == ".toml") {
         loadToml(filename);  // Load the TOML file if it has a .toml extension
     } else {
         loadTxt(filename);   // Otherwise, load the file as a text file

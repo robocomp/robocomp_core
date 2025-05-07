@@ -106,23 +106,56 @@ MACRO(ROBOCOMP_IDSL_TO_ICE)
     message(STATUS "Generating ICE files in directory: ${RC_OUTPUT_ICE_DIR}")
     FILE(MAKE_DIRECTORY "${RC_OUTPUT_ICE_DIR}")
 
-    FOREACH(input_file ${ARGN})
-        set(found FALSE)
+    # List to keep track of processed files to avoid circular dependencies
+    SET(PROCESSED_IDSL_FILES "")
+
+    # Recursive function to process IDSL files and their dependencies
+    FUNCTION(PROCESS_IDSL_FILE input_file)
+        # Check if already processed
+        LIST(FIND PROCESSED_IDSL_FILES ${input_file} _index)
+        IF(NOT _index EQUAL -1)
+            RETURN()
+        ENDIF()
         
+        LIST(APPEND PROCESSED_IDSL_FILES ${input_file})
+        
+        set(found FALSE)
         FOREACH(SPATH ${SLICE_PATH})
             IF(EXISTS "${SPATH}/${input_file}.idsl")
                 SET(INPUT_IDSL "${SPATH}/${input_file}.idsl")
                 SET(OUTPUT_ICE "${RC_OUTPUT_ICE_DIR}/${input_file}.ice")
                 
-                # Do it need to renerate
-                SET(SHOULD_REGENERATE TRUE)
+                # Parse the IDSL file to find dependencies
+                FILE(STRINGS "${INPUT_IDSL}" IDSL_CONTENT)
+                SET(DEPENDENCIES "")
+                FOREACH(LINE ${IDSL_CONTENT})
+                    IF(LINE MATCHES "^import[ \t]+\"([a-zA-Z0-9_/]+)\"")
+                        SET(DEPENDENCY_IDSL "${CMAKE_MATCH_1}")
+                        PROCESS_IDSL_FILE(${DEPENDENCY_IDSL})
+                        LIST(APPEND DEPENDENCIES "${DEPENDENCY_IDSL}.idsl")
+                    ENDIF()
+                ENDFOREACH()
                 
+                # Check if regeneration is needed
+                SET(SHOULD_REGENERATE TRUE)
                 IF(EXISTS "${OUTPUT_ICE}")
-                    # Compare timestamps
                     FILE(TIMESTAMP "${INPUT_IDSL}" IDSL_TIME)
                     FILE(TIMESTAMP "${OUTPUT_ICE}" ICE_TIME)
                     
                     IF("${IDSL_TIME}" STRLESS "${ICE_TIME}")
+                        # Check dependencies timestamps
+                        FOREACH(DEP ${DEPENDENCIES})
+                            FOREACH(SP ${SLICE_PATH})
+                                IF(EXISTS "${SP}/${DEP}")
+                                    FILE(TIMESTAMP "${SP}/${DEP}" DEP_TIME)
+                                    IF("${DEP_TIME}" STRGREATER "${ICE_TIME}")
+                                        SET(SHOULD_REGENERATE TRUE)
+                                        BREAK()
+                                    ENDIF()
+                                ENDIF()
+                            ENDFOREACH()
+                        ENDFOREACH()
+                    ELSE()
                         SET(SHOULD_REGENERATE FALSE)
                     ENDIF()
                 ENDIF()
@@ -132,21 +165,19 @@ MACRO(ROBOCOMP_IDSL_TO_ICE)
                     add_custom_command(
                         OUTPUT "${OUTPUT_ICE}"
                         COMMAND robocompdsl ${INPUT_IDSL} ${OUTPUT_ICE}
-                        DEPENDS ${INPUT_IDSL}
+                        DEPENDS ${INPUT_IDSL} ${DEPENDENCIES}
                         COMMENT "Generating ${OUTPUT_ICE} from ${INPUT_IDSL}"
                         VERBATIM
                     )
                     
                     if(NOT TARGET "ICE_${input_file}_target")
-                      add_custom_target(
-                          "ICE_${input_file}_target"
-                          ALL
-                          DEPENDS "${OUTPUT_ICE}"
-                      )
-                      add_dependencies(ICES_${SPECIFIC_TARGET} "ICE_${input_file}_target")
+                        add_custom_target(
+                            "ICE_${input_file}_target"
+                            ALL
+                            DEPENDS "${OUTPUT_ICE}"
+                        )
+                        add_dependencies(ICES_${SPECIFIC_TARGET} "ICE_${input_file}_target")
                     endif()
-                    
-                    add_dependencies(ICES_${SPECIFIC_TARGET} "ICE_${input_file}_target")
                 ELSE()
                     MESSAGE(STATUS "Skipping generation of ${OUTPUT_ICE} - up to date")
                 ENDIF()
@@ -159,7 +190,12 @@ MACRO(ROBOCOMP_IDSL_TO_ICE)
         if(NOT found)
             MESSAGE(FATAL_ERROR "${input_file}.idsl not found in (${SLICE_PATH}).")
         endif()
-    ENDFOREACH(input_file)
+    ENDFUNCTION()
+
+    # Process all input files and their dependencies
+    FOREACH(input_file ${ARGN})
+        PROCESS_IDSL_FILE(${input_file})
+    ENDFOREACH()
 ENDMACRO()
 
 MACRO( ROBOCOMP_ICE_TO_SRC )

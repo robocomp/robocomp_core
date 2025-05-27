@@ -76,6 +76,7 @@ class ConfigLoader:
                 # Skip empty lines and comments
                 if not line or line.startswith('#'):
                     continue
+                line = line.split("#")[0]
                     
                 try:
                     key, value = map(str.strip, line.split('=', 1))

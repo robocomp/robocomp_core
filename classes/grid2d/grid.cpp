@@ -5,6 +5,7 @@
 #include <cppitertools/enumerate.hpp>
 #include <cppitertools/chunked.hpp>
 #include <cppitertools/filterfalse.hpp>
+#include <set>
 
 auto operator<<(std::ostream &os, const Grid::Key &k) -> decltype(k.save(os), os)
 {

@@ -37,6 +37,7 @@ class AbstractGraphicViewer : public QGraphicsView
         QGraphicsScene scene;
         QGraphicsPolygonItem* robot_poly();
         QGraphicsEllipseItem* laser_in_robot();
+        void fitToScene(QRectF rect);  // Fit view to show the given rect
 
     Q_SIGNALS:
       void new_mouse_coordinates(QPointF);

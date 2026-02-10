@@ -8,7 +8,8 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool 
     QVBoxLayout *vlayout = new QVBoxLayout(parent);
     vlayout->addWidget(this);
     scene.setItemIndexMethod(QGraphicsScene::NoIndex);
-    scene.setSceneRect(dim_);
+    // Set a very large scene rect to allow unlimited panning
+    scene.setSceneRect(-100000, -100000, 200000, 200000);
     this->setScene(&scene);
     this->setCacheMode(QGraphicsView::CacheBackground);
     this->setViewport(new QOpenGLWidget());
@@ -18,8 +19,12 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool 
     //this->setMinimumSize(400, 400);
     this->scale(1, -1);
     this->setMouseTracking(true);
-    this->fitInView(scene.sceneRect(), Qt::KeepAspectRatio);
+    // Don't use fitInView - it limits panning. Use centerOn instead.
+    this->centerOn(dim_.center());
     this->viewport()->setMouseTracking(true);
+    this->setDragMode(QGraphicsView::NoDrag);  // Disable default drag to use custom pan
+    this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // axis
     if(draw_axis)
@@ -83,43 +88,76 @@ void AbstractGraphicViewer::resizeEvent(QResizeEvent *e)
 }
 void AbstractGraphicViewer::mouseMoveEvent(QMouseEvent *event)
 {
+    std::cout << "[MOUSE MOVE] _pan=" << _pan << std::endl;
     if (_pan)
     {
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - (event->position().x() - _panStartX));
-        verticalScrollBar()->setValue(verticalScrollBar()->value() - (event->position().y() - _panStartY));
+        // Calculate delta in scene coordinates
+        QPointF oldPos = mapToScene(_panStartX, _panStartY);
+        QPointF newPos = mapToScene(event->position().toPoint());
+        QPointF delta = oldPos - newPos;
+
+        std::cout << "[PAN] delta=(" << delta.x() << ", " << delta.y() << ")" << std::endl;
+
+        // Update pan start position
         _panStartX = event->position().x();
         _panStartY = event->position().y();
-        event->accept();
 
+        // Move the view center by delta (keeps scene coordinate system intact)
+        QPointF center = mapToScene(viewport()->rect().center());
+        centerOn(center + delta);
+
+        event->accept();
+        return;
     }
     QGraphicsView::mouseMoveEvent(event);
 }
 void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton)
+    std::cout << "[MOUSE PRESS] button=" << event->button() << " (Right=2)" << std::endl;
+    if (event->button() == Qt::RightButton)
     {
+        // Ctrl+Right click = emit right_click signal (cancel target)
+        if (event->modifiers() & Qt::ControlModifier)
+        {
+            std::cout << "[MOUSE] Ctrl+Right -> emit right_click" << std::endl;
+            auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+            emit right_click(cursor_in_scene);
+            event->accept();
+            return;
+        }
+        // Right click alone = pan
+        std::cout << "[MOUSE] Right -> starting pan" << std::endl;
         _pan = true;
         _panStartX = event->position().x();
         _panStartY = event->position().y();
         setCursor(Qt::ClosedHandCursor);
         event->accept();
-        auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
-        emit new_mouse_coordinates(cursor_in_scene);
         return;
     }
-    if (event->button() == Qt::RightButton)
+    if (event->button() == Qt::LeftButton)
     {
+        std::cout << "[MOUSE] Left -> emit new_mouse_coordinates" << std::endl;
+        auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+        emit new_mouse_coordinates(cursor_in_scene);
         event->accept();
+        return;
+    }
+    if (event->button() == Qt::MiddleButton)
+    {
+        std::cout << "[MOUSE] Middle -> emit right_click" << std::endl;
         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
         emit right_click(cursor_in_scene);
+        event->accept();
         return;
     }
     QGraphicsView::mousePressEvent(event);
 }
 void AbstractGraphicViewer::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton)
+    std::cout << "[MOUSE RELEASE] button=" << event->button() << std::endl;
+    if (event->button() == Qt::RightButton)
     {
+        std::cout << "[MOUSE] Right released -> stopping pan" << std::endl;
         _pan = false;
         setCursor(Qt::ArrowCursor);
         event->accept();

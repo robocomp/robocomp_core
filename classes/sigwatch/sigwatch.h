@@ -47,7 +47,7 @@ public:
 
     void watchForSignal(int signal);
 
-signals:
+Q_SIGNALS:
     void unixSignal(int signal);
 
 private:

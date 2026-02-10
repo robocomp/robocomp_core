@@ -38,7 +38,7 @@ class AbstractGraphicViewer : public QGraphicsView
         QGraphicsPolygonItem* robot_poly();
         QGraphicsEllipseItem* laser_in_robot();
 
-signals:
+    Q_SIGNALS:
       void new_mouse_coordinates(QPointF);
       void right_click(QPointF);
 

@@ -42,6 +42,7 @@ class AbstractGraphicViewer : public QGraphicsView
     Q_SIGNALS:
       void new_mouse_coordinates(QPointF);
       void right_click(QPointF);
+      void robot_moved(QPointF);  // Shift+Left click to reposition robot
 
     protected:
         bool _pan = false;

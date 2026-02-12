@@ -131,6 +131,14 @@ void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton)
     {
         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+        // Shift+Left click = move robot to this position
+        if (event->modifiers() & Qt::ShiftModifier)
+        {
+            emit robot_moved(cursor_in_scene);
+            event->accept();
+            return;
+        }
+        // Left click alone = set target
         emit new_mouse_coordinates(cursor_in_scene);
         event->accept();
         return;

@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QGraphicsPolygonItem>
+#include <QLabel>
 #include <iostream>
 
 
@@ -23,21 +24,25 @@ class AbstractGraphicViewer : public QGraphicsView
     Q_OBJECT
     private:
         qreal m_scaleX, m_scaleY;
-        QGraphicsPolygonItem *robot_polygon;
+        QGraphicsItem *robot_polygon;
         QGraphicsEllipseItem *laser_in_robot_sr;
+        QLabel *status_label_ = nullptr;  // overlay label (top band)
 
     public:
         AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool draw_axis = true);
-        std::tuple<QGraphicsPolygonItem*, QGraphicsEllipseItem*> add_robot(float robot_width,
+        // laser_x_offset and laser_y_offset are expressed as a fraction of robot size (unitless).
+        // Example: laser_y_offset=0.2 places the marker at 20% of robot length along +Y in robot frame.
+        std::tuple<QGraphicsItem*, QGraphicsEllipseItem*> add_robot(float robot_width,
                                                                            float robot_length,
                                                                            float laser_x_offset = 0,
-                                                                           float laser_y_offset= 100,
+                                                                           float laser_y_offset= 0.0,
                                                                            QColor color= QColor("Blue"));
         void draw_contour();
         QGraphicsScene scene;
-        QGraphicsPolygonItem* robot_poly();
+        QGraphicsItem* robot_poly();
         QGraphicsEllipseItem* laser_in_robot();
         void fitToScene(QRectF rect);  // Fit view to show the given rect
+        void set_status_text(const QString &text);
 
     Q_SIGNALS:
       void new_mouse_coordinates(QPointF);

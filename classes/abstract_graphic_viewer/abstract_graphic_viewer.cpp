@@ -10,13 +10,13 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool 
     scene.setItemIndexMethod(QGraphicsScene::NoIndex);
     // Set a very large scene rect to allow unlimited panning
     scene.setSceneRect(-100000, -100000, 200000, 200000);
+    //scene.setSceneRect(-100, -100, 200, 200);
     this->setScene(&scene);
     this->setCacheMode(QGraphicsView::CacheBackground);
     this->setViewport(new QOpenGLWidget());
     this->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
     this->setRenderHint(QPainter::Antialiasing);
     this->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
-    //this->setMinimumSize(400, 400);
     this->scale(1, -1);
     this->setMouseTracking(true);
     // Don't use fitInView - it limits panning. Use centerOn instead.
@@ -29,27 +29,52 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool 
     // axis
     if(draw_axis)
     {
-        auto r = sceneRect();
-        QLineF x_axis(r.center(), r.center() + QPointF(300, 0));
-        QLineF y_axis(r.center(), r.center() + QPointF(0, 300));
-        scene.addLine(x_axis, QPen(QColor("Red"), 30));
-        scene.addLine(y_axis, QPen(QColor("Green"), 30));
+        // Scale axis length with the provided initial dimensions (scene units).
+        // Use a fraction of the room size so it's independent of absolute units.
+        const qreal axis_len = std::max<qreal>(1.0, 0.2 * std::min(dim_.width(), dim_.height()));
+        const QPointF c = dim_.center();
+        QLineF x_axis(c, c + QPointF(axis_len, 0));
+        QLineF y_axis(c, c + QPointF(0, axis_len));
+        scene.addLine(x_axis, QPen(QColor("Red"), 0.03));
+        scene.addLine(y_axis, QPen(QColor("Green"), 0.03));
     }
     this->adjustSize();
 }
-std::tuple<QGraphicsPolygonItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::add_robot(float robot_width, float robot_length,
+
+std::tuple<QGraphicsItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::add_robot(float robot_width, float robot_length,
                                                                    float laser_x_offset, float laser_y_offset, QColor color)
 {
-    float sl = robot_length / 2.f;
-    float sw = robot_width / 2.f;
-    QPolygonF poly2;
-    poly2 << QPoint(-sw, -sl) << QPoint(-sw, sl) << QPoint(sw, sl) << QPoint(sw, -sl);
-    QBrush brush(color, Qt::SolidPattern);
-    robot_polygon = scene.addPolygon(poly2, QPen(color), brush);
-    laser_in_robot_sr = new QGraphicsEllipseItem(-30, -30, 60, 60, robot_polygon);
+    const float sl = robot_length / 2.f;
+    const float sw = robot_width / 2.f;
+    const QRectF r_poly(-sl, -sw, robot_length, robot_width);
+    const QBrush brush(color, Qt::SolidPattern);
+
+    // Use an explicit pen to keep corners sharp even under rotation/zoom.
+    QPen pen(color);
+    pen.setJoinStyle(Qt::MiterJoin);
+    pen.setCapStyle(Qt::SquareCap);
+    pen.setWidthF(0.0);          // hairline in device pixels
+    pen.setCosmetic(true);       // keep border width constant regardless of view scaling
+
+    robot_polygon = scene.addRect(r_poly, pen, brush);
+    robot_polygon->setTransformOriginPoint(r_poly.center());
+
+    // Laser marker: size is in scene units (meters). Make it proportional to robot width.
+    const qreal laser_diameter_m = static_cast<qreal>(robot_width) / 10.0;
+    const qreal laser_radius_m = laser_diameter_m / 2.0;
+
+    laser_in_robot_sr = new QGraphicsEllipseItem(-laser_radius_m, -laser_radius_m,
+                                                laser_diameter_m, laser_diameter_m, robot_polygon);
     laser_in_robot_sr->setBrush(QBrush(QColor("White")));
-    //scene.addItem(laser_in_robot_sr);
-    laser_in_robot_sr->setPos(laser_x_offset, laser_y_offset);
+    QPen laser_pen(QColor("Black"));
+    laser_pen.setWidthF(0.0);
+    laser_pen.setCosmetic(true);
+    laser_in_robot_sr->setPen(laser_pen);
+
+    // Offsets provided as percentage (unitless) of robot size.
+    // +X: robot width axis, +Y: robot length axis.
+    laser_in_robot_sr->setPos(laser_x_offset * robot_width, laser_y_offset * robot_length);
+
     robot_polygon->setZValue(55);
     robot_polygon->setPos(0, 0);
     return std::make_tuple(robot_polygon, laser_in_robot_sr);
@@ -57,10 +82,10 @@ std::tuple<QGraphicsPolygonItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::
 void AbstractGraphicViewer::draw_contour()
 {
     auto r = sceneRect();
-    auto sr = scene.addRect(r, QPen(QColor("Gray"), 100));
+    auto sr = scene.addRect(r, QPen(QColor("Gray"), 0.1));
     sr->setZValue(15);
 }
-QGraphicsPolygonItem* AbstractGraphicViewer::robot_poly()
+QGraphicsItem* AbstractGraphicViewer::robot_poly()
 {
     return robot_polygon;
 }

@@ -131,16 +131,42 @@ void AbstractGraphicViewer::mouseMoveEvent(QMouseEvent *event)
         event->accept();
         return;
     }
+    // Robot dragging (Left button held down)
+    if (_robot_dragging && (event->buttons() & Qt::LeftButton))
+    {
+        auto cursor_in_scene = this->mapToScene(event->position().toPoint());
+
+        if (event->modifiers() & Qt::ControlModifier)
+        {
+            // Ctrl+drag = rotate robot toward cursor
+            emit robot_rotate(cursor_in_scene);
+        }
+        else
+        {
+            // Normal drag = move robot
+            emit robot_dragging(cursor_in_scene);
+        }
+        event->accept();
+        return;
+    }
     QGraphicsView::mouseMoveEvent(event);
 }
 void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::RightButton)
     {
+        auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+
+        // Shift+Right click = set navigation target
+        if (event->modifiers() & Qt::ShiftModifier)
+        {
+            emit new_mouse_coordinates(cursor_in_scene);
+            event->accept();
+            return;
+        }
         // Ctrl+Right click = emit right_click signal (cancel target)
         if (event->modifiers() & Qt::ControlModifier)
         {
-            auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
             emit right_click(cursor_in_scene);
             event->accept();
             return;
@@ -156,20 +182,35 @@ void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton)
     {
         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
-        // Shift+Left click = move robot to this position
+
+        // Ctrl+Left click = start rotation mode
+        if (event->modifiers() & Qt::ControlModifier)
+        {
+            _robot_dragging = true;
+            setCursor(Qt::CrossCursor);
+            emit robot_rotate(cursor_in_scene);
+            event->accept();
+            return;
+        }
+
+        // Shift+Left click = instant move robot (legacy behavior)
         if (event->modifiers() & Qt::ShiftModifier)
         {
             emit robot_moved(cursor_in_scene);
             event->accept();
             return;
         }
-        // Left click alone = set target
-        emit new_mouse_coordinates(cursor_in_scene);
+
+        // Left click alone = start drag to move robot
+        _robot_dragging = true;
+        setCursor(Qt::ClosedHandCursor);
+        emit robot_drag_start(cursor_in_scene);
         event->accept();
         return;
     }
     if (event->button() == Qt::MiddleButton)
     {
+        // Middle button click = cancel target (alternative to Ctrl+Right)
         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
         emit right_click(cursor_in_scene);
         event->accept();
@@ -185,8 +226,74 @@ void AbstractGraphicViewer::mouseReleaseEvent(QMouseEvent *event)
         setCursor(Qt::ArrowCursor);
         event->accept();
     }
+    if (event->button() == Qt::LeftButton)
+    {
+        if (_robot_dragging)
+        {
+            _robot_dragging = false;
+            setCursor(Qt::ArrowCursor);
+            auto cursor_in_scene = this->mapToScene(event->position().toPoint());
+            emit robot_drag_end(cursor_in_scene);
+            event->accept();
+            return;
+        }
+    }
     QGraphicsView::mouseReleaseEvent(event);
 }
+// void AbstractGraphicViewer::mousePressEvent(QMouseEvent *event)
+// {
+//     if (event->button() == Qt::RightButton)
+//     {
+//         // Ctrl+Right click = emit right_click signal (cancel target)
+//         if (event->modifiers() & Qt::ControlModifier)
+//         {
+//             auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+//             emit right_click(cursor_in_scene);
+//             event->accept();
+//             return;
+//         }
+//         // Right click alone = pan
+//         _pan = true;
+//         _panStartX = event->position().x();
+//         _panStartY = event->position().y();
+//         setCursor(Qt::ClosedHandCursor);
+//         event->accept();
+//         return;
+//     }
+//     if (event->button() == Qt::LeftButton)
+//     {
+//         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+//         // Shift+Left click = move robot to this position
+//         if (event->modifiers() & Qt::ShiftModifier)
+//         {
+//             emit robot_moved(cursor_in_scene);
+//             event->accept();
+//             return;
+//         }
+//         // Left click alone = set target
+//         emit new_mouse_coordinates(cursor_in_scene);
+//         event->accept();
+//         return;
+//     }
+//     if (event->button() == Qt::MiddleButton)
+//     {
+//         auto cursor_in_scene = this->mapToScene(QPoint(event->position().x(), event->position().y()));
+//         emit right_click(cursor_in_scene);
+//         event->accept();
+//         return;
+//     }
+//     QGraphicsView::mousePressEvent(event);
+// }
+// void AbstractGraphicViewer::mouseReleaseEvent(QMouseEvent *event)
+// {
+//     if (event->button() == Qt::RightButton)
+//     {
+//         _pan = false;
+//         setCursor(Qt::ArrowCursor);
+//         event->accept();
+//     }
+//     QGraphicsView::mouseReleaseEvent(event);
+// }
 
 void AbstractGraphicViewer::fitToScene(QRectF rect)
 {

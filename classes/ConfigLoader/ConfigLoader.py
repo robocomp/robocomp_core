@@ -154,6 +154,27 @@ class ConfigLoader:
                 print(' ' * indent + "}")
             else:
                 print(' ' * indent + f"{key}: {value}")
+    
+    @staticmethod
+    def get_sur_names(config_data: Dict[str, Any], key: str) -> list[str]:
+        """
+        Get the sub-keys (field names) of a specific section if it is a nested dictionary.
+        
+        Args:
+            config_data: The nested configuration dictionary.
+            key: The primary key whose sub-keys are to be retrieved.
+            
+        Returns:
+            A sorted list of sub-keys found under the provided key.
+            Returns an empty list if the key is not found or is not a dictionary.
+        """
+        section = config_data.get(key)
+        if isinstance(section, dict):
+            return sorted([
+                k for k, v in section.items() 
+                if isinstance(v, dict)
+            ])
+        return []
 
 def main():
     if len(sys.argv) < 2:

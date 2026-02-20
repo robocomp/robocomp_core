@@ -3,6 +3,8 @@
 #define CONFIG_LOADER_H
 
 #include <string>
+#include <ranges>
+#include <vector>
 #include <algorithm>
 #include <unordered_map>
 #include <variant>
@@ -90,6 +92,26 @@ public:
      * @brief Prints all loaded configuration data to the console.
      */
     void printConfig() const;
+
+    /**
+     * @brief Checks if a key exists in the configuration.
+     * @param key The key to check.
+     * @return True if the key exists, false otherwise.
+     */
+    bool exists(const std::string& key) const;
+
+    /**
+     * @brief Retrieves all keys in the configuration.
+     * @return A vector of string views containing all keys.
+     */
+    std::vector<std::string_view> getKeys() const;
+    
+    /**
+     * @brief Retrieves all suffixes of a given key in the configuration.
+     * @param key The key to check.
+     * @return A vector of string views containing all suffixes of the key.
+     */
+    std::vector<std::string_view> getSurNames(const std::string& key) const;
 };
 #include "ConfigLoader.tpp"
 #endif // CONFIG_LOADER_H

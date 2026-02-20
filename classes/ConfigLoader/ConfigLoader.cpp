@@ -243,3 +243,41 @@ std::string ConfigLoader::getTypeName(const ConfigTypes& value) {
         else return "unknown";
     }, value);
 }
+
+bool ConfigLoader::exists(const std::string& key) const {
+    return configData.contains(key);
+}
+
+std::vector<std::string_view> ConfigLoader::getKeys() const {
+    auto keys_view = std::views::keys(configData);
+    return std::vector<std::string_view>(keys_view.begin(), keys_view.end());
+}
+
+std::vector<std::string_view> ConfigLoader::getSurNames(const std::string& key) const {
+    auto keys_view = std::views::keys(configData) 
+        | std::views::filter([&](std::string_view k) { 
+            return k.contains(key); // C++23 contains es más limpio
+        })
+        | std::views::transform([&](std::string_view k) -> std::string_view {
+            // Buscamos el primer y segundo punto
+            size_t first_dot = k.find('.');
+            size_t second_dot = k.find('.', first_dot + 1);
+            
+            if (first_dot != std::string_view::npos && second_dot != std::string_view::npos) {
+                return k.substr(first_dot + 1, second_dot - first_dot - 1);
+            }
+            return ""; // O el manejo que prefieras si el formato falla
+        })
+        | std::views::filter([](std::string_view s) { return !s.empty(); });
+
+    // Pasamos a vector
+    std::vector<std::string_view> result(keys_view.begin(), keys_view.end());
+
+    // Eliminamos duplicados (episodic saldría 2 veces)
+    std::ranges::sort(result);
+    auto [ret, _] = std::ranges::unique(result);
+    result.erase(ret, result.end());
+
+    return result;
+}
+    

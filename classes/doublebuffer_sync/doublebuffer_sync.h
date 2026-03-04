@@ -183,7 +183,7 @@ template <class... DBs> class BufferSync
         * 'read_first' is a method that returns a tuple of optional output types for each data buffer.
         * The method uses a lambda function to generate a const index sequence equal to the size of the data buffers (DBs_size).
         * This index sequence is then used to call the 'read_first' method for each data buffer.
-        * The 'read_first' method for each data buffer returns the first element in the buffer (if it exists) as an optional value.
+        * The 'read_first' method for each data buffer returns the first (OLDEST) element in the buffer (if it exists) as an optional value.
         * The resulting tuple contains an optional value for each data buffer, where each optional value is the first element in the corresponding data buffer.
         * If a data buffer is empty, the corresponding optional value in the tuple will not contain a value.
         * This method is used to retrieve the first elements from all data buffers at once, without removing them from the buffers.
@@ -427,6 +427,75 @@ template <class... DBs> class BufferSync
                 }(seq);
                 std::cout << "--------------------------------------------------\n";
             }
+        }
+
+        /**
+        * 'get_snapshot' returns a thread-safe copy of all elements currently stored in the
+        * data buffer at index 'idx'. Elements are returned in chronological order:
+        * front() = oldest, back() = newest (same insertion order as the internal deque).
+        *
+        * This is useful when a consumer needs to iterate over the full history
+        * (e.g., to integrate velocities over a time window) without holding the lock
+        * for the duration of the iteration.
+        *
+        * @tparam idx  Index of the data buffer to snapshot.
+        * @return std::vector of output-type values (without timestamps).
+        *         Empty vector if the buffer has no data.
+        *
+        * Example:
+        *   BufferSync<InOut<VelocityCommand, VelocityCommand>> vel_buffer(20);
+        *   // producer: vel_buffer.put<0>(std::move(cmd), timestamp);
+        *   // consumer: auto snap = vel_buffer.get_snapshot<0>();
+        *   //           for (const auto& cmd : snap) { ... }
+        */
+        template <size_t idx,
+                  typename InOut = std::remove_cvref_t<decltype(std::get<idx>(std::tuple<DBs...>()))>>
+        auto get_snapshot() -> std::vector<typename InOut::O>
+        {
+            if (empty.load())
+                return {};
+
+            std::shared_lock lock(bufferMutex);
+            const auto &q = std::get<idx>(_out);
+            std::vector<typename InOut::O> result;
+            result.reserve(q.size());
+            for (const auto &[value, ts] : q)
+                result.push_back(value);
+            return result;
+        }
+
+        /**
+        * 'get_snapshot_with_timestamps' returns a thread-safe copy of all elements
+        * currently stored in the data buffer at index 'idx', including their timestamps.
+        * Elements are in chronological order: front() = oldest, back() = newest.
+        *
+        * @tparam idx  Index of the data buffer to snapshot.
+        * @return std::vector of pairs (value, timestamp).
+        */
+        template <size_t idx,
+                  typename InOut = std::remove_cvref_t<decltype(std::get<idx>(std::tuple<DBs...>()))>>
+        auto get_snapshot_with_timestamps() -> std::vector<std::pair<typename InOut::O, size_t>>
+        {
+            if (empty.load())
+                return {};
+
+            std::shared_lock lock(bufferMutex);
+            const auto &q = std::get<idx>(_out);
+            return {q.begin(), q.end()};
+        }
+
+        /**
+        * 'size' returns the current number of elements in the data buffer at index 'idx'.
+        * Thread-safe (acquires shared lock).
+        *
+        * @tparam idx  Index of the data buffer.
+        * @return Number of elements currently in the queue.
+        */
+        template <size_t idx>
+        size_t size() const
+        {
+            std::shared_lock lock(bufferMutex);
+            return std::get<idx>(_out).size();
         }
 
     private:

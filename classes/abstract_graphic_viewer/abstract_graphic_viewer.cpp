@@ -3,6 +3,7 @@
 //
 
 #include "abstract_graphic_viewer.h"
+#include <QPainterPath>
 AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool draw_axis)
 {
     QVBoxLayout *vlayout = new QVBoxLayout(parent);
@@ -46,7 +47,8 @@ std::tuple<QGraphicsItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::add_rob
 {
     const float sl = robot_length / 2.f;
     const float sw = robot_width / 2.f;
-    const QRectF r_poly(-sl, -sw, robot_length, robot_width);
+    const qreal nose_radius = static_cast<qreal>(sw);
+    const qreal nose_y = static_cast<qreal>(sl) - nose_radius;
     const QBrush brush(color, Qt::SolidPattern);
 
     // Use an explicit pen to keep corners sharp even under rotation/zoom.
@@ -56,8 +58,17 @@ std::tuple<QGraphicsItem*, QGraphicsEllipseItem*> AbstractGraphicViewer::add_rob
     pen.setWidthF(0.0);          // hairline in device pixels
     pen.setCosmetic(true);       // keep border width constant regardless of view scaling
 
-    robot_polygon = scene.addRect(r_poly, pen, brush);
-    robot_polygon->setTransformOriginPoint(r_poly.center());
+    // Robot silhouette: flat rear + rounded front (semicircle) to make heading explicit.
+    QPainterPath body;
+    body.moveTo(-sw, -sl);              // rear-left
+    body.lineTo(-sw, nose_y);           // left side toward front
+    body.quadTo(-sw, sl, 0.0, sl);      // left half of rounded nose
+    body.quadTo( sw, sl,  sw, nose_y);  // right half of rounded nose
+    body.lineTo( sw, -sl);              // right side back to rear-right
+    body.closeSubpath();
+
+    robot_polygon = scene.addPath(body, pen, brush);
+    robot_polygon->setTransformOriginPoint(body.boundingRect().center());
 
     // Laser marker: size is in scene units (meters). Make it proportional to robot width.
     const qreal laser_diameter_m = static_cast<qreal>(robot_width) / 10.0;

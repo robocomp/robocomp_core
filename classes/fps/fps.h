@@ -2,6 +2,8 @@
 // Example: fps.print("FPS:");
 // default refresh period is 1000
 
+#pragma once
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

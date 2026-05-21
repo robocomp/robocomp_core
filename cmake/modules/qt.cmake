@@ -68,8 +68,8 @@ IF (NOT QT.CMAKE)
 
 	IF (USE_QT5)
 		MESSAGE( STATUS "COMPILING WITH QT5" )
-		find_package(Qt5 REQUIRED COMPONENTS Gui Widgets Sql Core OpenGL Xml XmlPatterns QGLViewer-qt5)
-		set(QT_LIBRARIES Qt5::Gui Qt5::Core Qt5::Widgets Qt5::Sql Qt5::OpenGL Qt5::Xml Qt5::XmlPatterns Qt5::QGLViewer-qt5)
+		find_package(Qt5 REQUIRED COMPONENTS Gui Widgets Sql Core OpenGL Xml XmlPatterns)
+		set(QT_LIBRARIES Qt5::Gui Qt5::Core Qt5::Widgets Qt5::Sql Qt5::OpenGL Qt5::Xml Qt5::XmlPatterns)
 
 		list(APPEND SOURCES $ENV{ROBOCOMP}/classes/abstract_graphic_viewer_qt5/abstract_graphic_viewer.cpp)
 		list(APPEND HEADERS $ENV{ROBOCOMP}/classes/abstract_graphic_viewer_qt5/abstract_graphic_viewer.h)
@@ -105,7 +105,7 @@ IF (NOT QT.CMAKE)
 		ENDIF()
 
 		find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Core OpenGL Xml Core Widgets StateMachine)
-		set(QT_LIBRARIES Qt6::Gui Qt6::Core Qt6::Widgets Qt6::OpenGL Qt6::Xml Qt6::Core Qt6::Widgets Qt6::StateMachine Qt6OpenGLWidgets QGLViewer-qt6)
+		set(QT_LIBRARIES Qt6::Gui Qt6::Core Qt6::Widgets Qt6::OpenGL Qt6::Xml Qt6::Core Qt6::Widgets Qt6::StateMachine Qt6OpenGLWidgets)
 
 		LIST(APPEND SOURCES $ENV{ROBOCOMP}/classes/abstract_graphic_viewer/abstract_graphic_viewer.cpp)
 		LIST(APPEND HEADERS $ENV{ROBOCOMP}/classes/abstract_graphic_viewer/abstract_graphic_viewer.h)

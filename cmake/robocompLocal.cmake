@@ -20,12 +20,10 @@ MACRO( ROBOCOMP_INITIALIZE )
   # Set interfaces directory
   SET(RoboComp_INTERFACES_DIR "${ARGN}/interfaces/")
 
-  MESSAGE(STATUS ${OSGUTIL_LIBRARY})
-
   FIND_PACKAGE( Threads)
   FIND_PACKAGE( Ice REQUIRED COMPONENTS Ice IceStorm OPTIONAL_COMPONENTS IceUtil )
 
-  SET( LIBS ${LIBS} -L/opt/robocomp/lib ${OSG_LIBRARY} -losgViewer -losg -losgUtil  -losgGA ${OSGDB_LIBRARY} ${OSGVIEWER_LIBRARY} ${OPENTHREADS_LIBRARY}  -L${ROBOCOMP_ROOT}/classes ${CMAKE_THREAD_LIBS_INIT} -lboost_system  ${IPP_LIBS} )
+  SET( LIBS ${LIBS} -L/opt/robocomp/lib -L${ROBOCOMP_ROOT}/classes ${CMAKE_THREAD_LIBS_INIT} -lboost_system ${IPP_LIBS} )
 
 ENDMACRO( ROBOCOMP_INITIALIZE )
 

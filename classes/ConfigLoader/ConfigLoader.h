@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <utility>
 #include <toml++/toml.h>
 
 
@@ -114,4 +115,57 @@ public:
     std::vector<std::string_view> getSurNames(const std::string& key) const;
 };
 #include "ConfigLoader.tpp"
+
+namespace rc
+{
+struct ConfigLoaderUtils
+{
+    template <typename TargetType, typename LoadType = TargetType>
+    static void load_required(const ConfigLoader& config_loader, const char* key, TargetType& target)
+    {
+        try
+        {
+            target = static_cast<TargetType>(config_loader.get<LoadType>(key));
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[CRITICAL] Required config key '" << key << "' is missing or invalid: " << e.what() << '\n';
+            throw;
+        }
+    }
+
+    template <typename TargetType, typename LoadType = TargetType>
+    static void load_optional(const ConfigLoader& config_loader, const char* key, TargetType& target)
+    {
+        if (!config_loader.exists(key))
+            return;
+
+        try
+        {
+            target = static_cast<TargetType>(config_loader.get<LoadType>(key));
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[WARNING] Ignoring invalid config key '" << key << "': " << e.what() << '\n';
+        }
+    }
+
+    template <typename LoadType, typename AssignFn>
+    static void load_optional_apply(const ConfigLoader& config_loader, const char* key, AssignFn&& assign)
+    {
+        if (!config_loader.exists(key))
+            return;
+
+        try
+        {
+            std::forward<AssignFn>(assign)(config_loader.get<LoadType>(key));
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[WARNING] Ignoring invalid config key '" << key << "': " << e.what() << '\n';
+        }
+    }
+};
+}  // namespace rc
+
 #endif // CONFIG_LOADER_H

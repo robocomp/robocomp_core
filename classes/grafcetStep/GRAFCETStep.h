@@ -9,6 +9,7 @@
 #define GRAFCETSTEP_H
 #define DEBUG 0
 
+#include <QElapsedTimer>
 #include <QState>
 #include <QTimer>
 #include <iostream>
@@ -30,6 +31,7 @@ public:
     ~GRAFCETStep();
     void setPeriod(int period_ms);
     int getPeriod();
+    float getActualFps() const;
 
 protected:
     void onEntry(QEvent *event) ;
@@ -41,5 +43,7 @@ private:
     std::function<void()> N;        //Function to be executed cyclically
     std::function<void()> P1;       //Function to be executed at start step
     std::function<void()> P0;       //Function to be executed at end step
+    QElapsedTimer fps_timer_;       // Measures actual inter-call interval
+    float actual_fps_ = 0.f;        // EMA of actual FPS
 };
 #endif // GRAFCETSTEP_H

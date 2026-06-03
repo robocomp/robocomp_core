@@ -33,7 +33,18 @@ GRAFCETStep::GRAFCETStep(QString name, int period_ms, const std::function<void()
         this->timer_step = new QTimer(this);       //Create cyclic timer
         this->timer_step->setInterval(period_ms);  //Set time to cyclic timer
         //Connecting the cyclic timer to the function 
-        connect(this->timer_step, &QTimer::timeout, this, [this](){this->N();});
+        connect(this->timer_step, &QTimer::timeout, this, [this](){
+            if (fps_timer_.isValid()) {
+                const float dt_ms = static_cast<float>(fps_timer_.elapsed());
+                if (dt_ms > 0.f) {
+                    const float inst_fps = 1000.f / dt_ms;
+                    actual_fps_ = (actual_fps_ == 0.f) ? inst_fps
+                                                       : 0.9f * actual_fps_ + 0.1f * inst_fps;
+                }
+            }
+            fps_timer_.restart();
+            this->N();
+        });
     }
     #if DEBUG
         std::cout << "Construido GRAFCETStep"<< this->objectName().toStdString() <<std::endl<<std::flush;
@@ -94,6 +105,16 @@ int GRAFCETStep::getPeriod()
         return this->timer_step->interval();
     else
         return -1;
+}
+
+/**
+ * @brief Return the measured actual FPS of the cyclic N function.
+ *
+ * Uses an EMA (α=0.9) over inter-call intervals. Returns 0 before the first call.
+ */
+float GRAFCETStep::getActualFps() const
+{
+    return actual_fps_;
 }
 
 /**

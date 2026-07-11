@@ -48,6 +48,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <functional>
 #include <iomanip>
@@ -335,7 +336,7 @@ template <class... DBs> class BufferSync
                                    return std::abs(static_cast<ssize_t>(val.second) -
                                                    static_cast<ssize_t>(timestamp));
                                  });
-                  auto it_idx = std::min(diffs.begin(), diffs.end()) - diffs.begin();
+                  auto it_idx = std::min_element(diffs.begin(), diffs.end()) - diffs.begin();
                   auto it = q.begin() + it_idx;
                   if (it != q.end() && timestamp - it->second <= max_diff)
                     r = it->first;

@@ -3,11 +3,32 @@
 
 #include "ConfigLoader.h"
 
+#include <type_traits>   // std::is_same_v, for the int -> double widening below
+
 template <typename T>
 T ConfigLoader::get(const std::string& key) const {
     auto it = configData.find(key);
     if (it == configData.end()) {
         throw std::runtime_error("Key not found: " + key);
+    }
+
+    // ── int -> double WIDENING ────────────────────────────────────────────────────────────────────
+    // Whether a TOML scalar lands in the variant as `int` or `double` depends only on whether it was
+    // WRITTEN with a decimal point: `Period = 25` is an int, `Period = 25.0` a double. Both mean the
+    // same number to the caller, so a get<double> on the first used to throw for a purely lexical
+    // reason — and every agent's load_optional_cast swallows that exception, so the configured value
+    // was silently replaced by the built-in default with nothing logged anywhere. (Found 2026-08-03:
+    // controller's VelocityOutputPeriodMs = 25 and ControlPollMs = 10 had never taken effect.)
+    // int -> double is exact for every value a config file can hold, so accept it.
+    // Deliberately ONE-WAY: double -> int stays an error, since that one would silently truncate.
+    if constexpr (std::is_same_v<T, double>) {
+        if (const int* as_int = std::get_if<int>(&it->second))
+            return static_cast<double>(*as_int);
+    }
+    // Same lexical trap one level up: `[1, 2, 3]` is a vector<int>, `[1.0, 2.0, 3.0]` a vector<double>.
+    if constexpr (std::is_same_v<T, std::vector<double>>) {
+        if (const std::vector<int>* as_ints = std::get_if<std::vector<int>>(&it->second))
+            return std::vector<double>(as_ints->begin(), as_ints->end());
     }
 
     try {

@@ -11,12 +11,13 @@ AbstractGraphicViewer::AbstractGraphicViewer(QWidget *parent, QRectF dim_, bool 
     scene.setItemIndexMethod(QGraphicsScene::NoIndex);
     // Set a very large scene rect to allow unlimited panning
     scene.setSceneRect(-100000, -100000, 200000, 200000);
-    //scene.setSceneRect(-100, -100, 200, 200);
+    
     this->setScene(&scene);
-    this->setCacheMode(QGraphicsView::CacheBackground);
-    this->setViewport(new QOpenGLWidget());
+    //this->setCacheMode(QGraphicsView::CacheBackground);
+    //this->setViewport(new QOpenGLWidget());
+    this->setViewport(new QWidget()); 
     this->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
-    this->setRenderHint(QPainter::Antialiasing);
+    //this->setRenderHint(QPainter::Antialiasing);
     this->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     this->scale(1, -1);
     this->setMouseTracking(true);

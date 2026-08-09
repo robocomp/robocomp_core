@@ -127,18 +127,23 @@ void AbstractGraphicViewer::mouseMoveEvent(QMouseEvent *event)
 {
     if (_pan)
     {
-        // Calculate delta in scene coordinates
-        QPointF oldPos = mapToScene(_panStartX, _panStartY);
-        QPointF newPos = mapToScene(event->position().toPoint());
-        QPointF delta = oldPos - newPos;
+        // Pan by scrolling the viewport by the PIXEL delta. Never round-trip through scene coordinates:
+        // mapToScene(viewport()->rect().center()) reads the centre at pixel ((w-1)/2,(h-1)/2), while
+        // centerOn() re-places the point it is given at (w/2,h/2). Those differ by one pixel, so every
+        // single mouse-move event teleported the view 1 px right and 1 px down ON TOP of the requested
+        // delta, whichever way the mouse went — cancelling a slow drag left/up and doubling it
+        // right/down. Measured: 10 events with the mouse held STILL moved the view 10 px.
+        // This is the pre-2026-02 idiom, and it is what Qt's own ScrollHandDrag does internally. It
+        // was dropped when the scene rect was small enough that the scrollbars had no range; the same
+        // commit enlarged the rect to +-100000, which removes that limitation.
+        const QPoint pos = event->position().toPoint();
+        const int dx = pos.x() - _panStartX;
+        const int dy = pos.y() - _panStartY;
+        _panStartX = pos.x();
+        _panStartY = pos.y();
 
-        // Update pan start position
-        _panStartX = event->position().x();
-        _panStartY = event->position().y();
-
-        // Move the view center by delta (keeps scene coordinate system intact)
-        QPointF center = mapToScene(viewport()->rect().center());
-        centerOn(center + delta);
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - dx);
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - dy);
 
         event->accept();
         return;

@@ -95,6 +95,22 @@ class DoubleBuffer
             return readBuffer;
        }
 
+       // As get_idemp(), but copies only what the projection extracts instead of the
+       // whole buffer. For a large aggregate whose consumer wants one member, this is
+       // the difference between copying the object twice and copying the member once.
+       // The projection must return by value: the lock is released on return.
+       template <typename Fn>
+       auto get_idemp_with(Fn &&projection, std::chrono::milliseconds t = 200ms)
+       {
+            std::shared_lock lock(bufferMutex);
+            if (!cv.wait_until(bufferMutex,
+                               std::chrono::steady_clock::now() + t ,
+                               [this]() { return !empty.load();})){
+                throw std::runtime_error("Timeout");
+            }
+            return projection(std::as_const(readBuffer));
+       }
+
        std::optional<O> try_get()
        {
            if (empty.load()){

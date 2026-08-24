@@ -1,0 +1,45 @@
+// RoboComp active_inference - media transport plane
+// Bounded, FINAL, plain (is_plain()==true) image type so FastDDS can use
+// shared-memory data-sharing + zero-copy loans. NO sequences/strings allowed:
+// every member must be fixed-size for the type to remain "plain".
+//
+// Buffer sized for the worst-case ZED stream at 1280x720x4 bytes:
+//   - BGR8  RGB   : 1280*720*3 = 2,764,800 B
+//   - F32   depth : 1280*720*4 = 3,686,400 B  <-- worst case, drives MAX
+// One type serves both topics (rc/zed/rgb, rc/zed/depth).
+
+module rc { module media {
+
+    // 1280 * 720 * 4
+    const unsigned long MAX_IMAGE_BYTES = 3686400;
+
+    // Stream identifiers (also the DDS instance key).
+    const unsigned long STREAM_ZED_RGB   = 0;
+    const unsigned long STREAM_ZED_DEPTH = 1;
+
+    // Pixel format codes carried in ImageFrame::format.
+    const unsigned long FORMAT_BGR8    = 0;
+    const unsigned long FORMAT_RGB8    = 1;
+    const unsigned long FORMAT_GRAY8   = 2;
+    const unsigned long FORMAT_Z16     = 3;   // uint16 depth, millimetres
+    const unsigned long FORMAT_DEPTH_F32 = 4; // float32 depth, metres
+
+    @extensibility(FINAL)
+    struct ImageFrame
+    {
+        // 64-bit members FIRST so the C++ in-memory layout matches the XCDR2
+        // serialized layout (XCDR2 caps alignment at 4). A leading 32-bit
+        // member would insert 4 padding bytes in C++ but not in XCDR2, making
+        // is_plain(XCDR2)==false and silently disabling data-sharing zero-copy.
+        unsigned long long       frame_id;    // monotonic, set by producer
+        unsigned long long       stamp_ms;    // capture timestamp, epoch milliseconds
+        @key unsigned long       stream_id;   // one DDS instance per stream
+        unsigned long            width;
+        unsigned long            height;
+        unsigned long            step;        // row stride in bytes
+        unsigned long            format;      // FORMAT_* code
+        unsigned long            size;        // valid bytes in data[]
+        octet                    data[MAX_IMAGE_BYTES];
+    };
+
+}; };

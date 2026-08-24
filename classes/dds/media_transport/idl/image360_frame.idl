@@ -1,0 +1,44 @@
+// RoboComp active_inference - media transport plane
+// Bounded, FINAL, plain (is_plain()==true) image type for the 360 panorama
+// produced by the RGBD_360 component (two back-to-back cylindrical halves
+// stitched side-by-side into one wide RGB image). Kept as a SEPARATE type from
+// ImageFrame so the ZED plane's small buffer is not enlarged for every consumer.
+//
+// Buffer sized for the worst-case ricoh RGB panorama at 1920x960x3 bytes:
+//   - RGB8 : 1920*960*3 = 5,529,600 B  <-- drives MAX
+// Depth (sparse reprojected lidar XYZ) is NOT carried here yet; see the ricoh
+// node notes — for now the co-registered cloud is available on the lidar3D plane.
+
+module rc { module media {
+
+    // 1920 * 960 * 3
+    const unsigned long MAX_IMAGE360_BYTES = 5529600;
+
+    // Stream identifiers (also the DDS instance key).
+    const unsigned long STREAM_RICOH_RGB = 0;
+
+    // Pixel format codes carried in Image360Frame::format. Kept numerically in
+    // sync with image_frame.idl FORMAT_* so a consumer can share decode logic.
+    const unsigned long IMG360_FORMAT_BGR8  = 0;
+    const unsigned long IMG360_FORMAT_RGB8   = 1;
+    const unsigned long IMG360_FORMAT_GRAY8  = 2;
+
+    @extensibility(FINAL)
+    struct Image360Frame
+    {
+        // 64-bit members FIRST so the C++ in-memory layout matches the XCDR2
+        // serialized layout (XCDR2 caps alignment at 4). A leading 32-bit
+        // member would insert 4 padding bytes in C++ but not in XCDR2, making
+        // is_plain(XCDR2)==false and silently disabling data-sharing zero-copy.
+        unsigned long long       frame_id;    // monotonic, set by producer
+        unsigned long long       stamp_ms;    // capture timestamp, epoch milliseconds
+        @key unsigned long       stream_id;   // one DDS instance per stream
+        unsigned long            width;
+        unsigned long            height;
+        unsigned long            step;        // row stride in bytes
+        unsigned long            format;      // IMG360_FORMAT_* code
+        unsigned long            size;        // valid bytes in data[]
+        octet                    data[MAX_IMAGE360_BYTES];
+    };
+
+}; };

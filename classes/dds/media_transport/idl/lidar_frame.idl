@@ -1,0 +1,33 @@
+// RoboComp active_inference - media transport plane
+// Bounded, FINAL, plain (is_plain()==true) LiDAR scan so FastDDS can use
+// shared-memory data-sharing + zero-copy loans. Points are interleaved float32
+// xyz (metres) packed into a fixed array; `count` valid points are filled. One
+// LidarFrame per getLidarData() call. The fixed bound caps the worst-case scan;
+// publishers MUST drop scans with count > MAX_LIDAR_POINTS.
+
+module rc { module media {
+
+    // Max points per scan. xyz float32 interleaved => 3 * 131072 * 4 = 1.5 MB,
+    // well under ImageFrame's 3.6 MB. Bump if a denser sensor is attached.
+    const unsigned long MAX_LIDAR_POINTS = 131072;
+
+    // Stream identifier (also the DDS instance key).
+    const unsigned long STREAM_LIDAR = 3;
+
+    // Point layout codes carried in LidarFrame::format.
+    const unsigned long LIDAR_FORMAT_XYZ_F32 = 0;   // interleaved x,y,z float32, metres
+
+    @extensibility(FINAL)
+    struct LidarFrame
+    {
+        // 64-bit members FIRST (see ImageFrame) to keep is_plain()==true.
+        unsigned long long frame_id;     // monotonic, set by producer
+        unsigned long long stamp_ms;     // capture timestamp, epoch milliseconds
+        @key unsigned long stream_id;    // one DDS instance for the LiDAR stream
+        unsigned long      count;        // number of valid points in points[]
+        unsigned long      format;       // LIDAR_FORMAT_* code
+        unsigned long      stride;       // floats per point (3 for xyz)
+        float              points[393216];   // 3 * MAX_LIDAR_POINTS, interleaved
+    };
+
+}; };

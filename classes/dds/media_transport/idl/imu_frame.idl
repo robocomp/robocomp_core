@@ -1,0 +1,41 @@
+// RoboComp active_inference - media transport plane
+// Bounded, FINAL, plain (is_plain()==true) IMU sample so FastDDS can use
+// shared-memory data-sharing + zero-copy loans. Tiny fixed payload — NEVER ride
+// IMU on the 3.6MB ImageFrame: with data-sharing off every sample is serialized,
+// so the slot size is the per-sample cost. One ImuFrame per getDataImu() call.
+
+module rc { module media {
+
+    // Stream identifier (also the DDS instance key). Shares the constant space
+    // with STREAM_ZED_RGB(0)/STREAM_ZED_DEPTH(1)/STREAM_LIDAR(3).
+    const unsigned long STREAM_IMU = 2;
+
+    @extensibility(FINAL)
+    struct ImuFrame
+    {
+        // 64-bit members FIRST so the C++ in-memory layout matches the XCDR2
+        // serialized layout (XCDR2 caps alignment at 4) — keeps is_plain()==true.
+        unsigned long long frame_id;     // monotonic, set by producer
+        unsigned long long stamp_ms;     // capture timestamp, WALL epoch milliseconds
+        // Producer's SIMULATION clock in ms, or 0 when the source is a real sensor. Carried because
+        // a consumer integrating a rate must key on the clock the rate is measured against: a
+        // simulator reports per SIMULATION second while its timestamps are wall, and integrating one
+        // against the other over-counts by exactly the sim/wall ratio -- a defect this fleet has
+        // already paid for once (6.5%). 0 doubles as the "not simulated" flag, so no separate boolean
+        // is needed and the plain layout is untouched.
+        unsigned long long sim_stamp_ms;
+        @key unsigned long stream_id;    // one DDS instance for the IMU stream
+
+        float acc_x;  float acc_y;  float acc_z;    // linear acceleration
+        float gyro_x; float gyro_y; float gyro_z;   // angular velocity
+        float mag_x;  float mag_y;  float mag_z;     // magnetic field
+        float roll;   float pitch;  float yaw;       // orientation (Euler)
+        float temperature;
+        // Per-sample angular-rate variance, (rad/s)^2; negative means the producer does not know.
+        // A consumer that weights this sample by a nominal figure while the data carries a different
+        // noise level is handed a covariance that lies, and every downstream precision is wrong the
+        // same way -- so the producer states it alongside the sample rather than out of band.
+        float gyro_var;
+    };
+
+}; };
